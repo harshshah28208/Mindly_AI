@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # Standalone Ollama container
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mindly_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    restart: unless-stopped
+
+  # Mindly Streamlit Web Application
+  mindly_web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mindly_web
+    ports:
+      - "7860:7860"
+      - "8501:8501"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2:1b
+      - VISION_MODEL=llava
+      - STREAMLIT_SERVER_PORT=7860
+    depends_on:
+      - ollama
+    volumes:
+      - mindly_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  ollama_models:
+  mindly_data:

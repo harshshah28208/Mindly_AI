@@ -270,20 +270,83 @@ Open **`http://localhost:8501`** in your browser.
 
 ---
 
-## 7. Automated Test Suite (62/62 Passing)
+## 7. Automated Test Suite (304/304 Passing)
 
-Mindly contains a comprehensive automated test suite spanning unit tests, RAG pipeline tests, SQLite database CRUD tests, and end-to-end integration flows.
+Mindly contains an exhaustive automated test suite spanning unit tests, RAG pipeline tests, SQLite database CRUD tests, multimodal voice & vision checks, and end-to-end integration flows.
 
 Run the complete test suite:
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover tests -v
+.\.venv\Scripts\python.exe -m pytest tests/ -v
 ```
 
 ### Test Results Summary
 ```
-Ran 62 tests in 7.631s
+304 passed in 48.50s
 OK (failures=0, errors=0)
 ```
+
+---
+
+## 8. Cloud & Online Deployment Guide (Running with Ollama Online)
+
+Mindly can be deployed fully online with Ollama running alongside it. Choose the deployment method that fits your needs:
+
+### Option A: Hugging Face Spaces (100% Free with 16GB RAM — Recommended)
+Hugging Face provides **free 16GB RAM + 2 vCPUs** on Docker Spaces, which is ideal for running `llama3.2:1b` and Ollama inside a single container without renting a GPU.
+
+1. **Create a Space on Hugging Face**:
+   - Go to [huggingface.co/new-space](https://huggingface.co/new-space).
+   - Space name: `Mindly_AI`.
+   - License: `mit` or `apache-2.0`.
+   - Select SDK: **Docker** -> **Blank**.
+2. **Push this Repository to your Hugging Face Space**:
+   ```bash
+   git remote add space https://huggingface.co/spaces/<YOUR_HF_USERNAME>/Mindly_AI
+   git push space main
+   ```
+3. **Automatic Build & Launch**:
+   - The included [`Dockerfile`](Dockerfile) installs Ollama, audio libraries (`espeak-ng`), and Python dependencies.
+   - The [`scripts/start.sh`](scripts/start.sh) script automatically initializes `ollama serve`, pulls `llama3.2:1b`, and serves the Streamlit app on port `7860`.
+   - Access your live app at: `https://huggingface.co/spaces/<YOUR_HF_USERNAME>/Mindly_AI`.
+
+---
+
+### Option B: Streamlit Community Cloud + Free Cloudflare Tunnel (Zero Cloud Costs)
+If you want free 24/7 web hosting on Streamlit Cloud while leveraging your local machine's hardware / Ollama:
+
+1. **Deploy Frontend on Streamlit Community Cloud**:
+   - Go to [share.streamlit.io](https://share.streamlit.io/) and connect your GitHub repo `harshshah28208/Mindly_AI`.
+   - Main file path: `app.py`.
+2. **Expose Local Ollama to the Web**:
+   - Download [Cloudflare Tunnel (cloudflared)](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) or Ngrok:
+     ```bash
+     cloudflared tunnel --url http://localhost:11434
+     ```
+   - Cloudflare will output a public HTTPS URL: `https://<random-id>.trycloudflare.com`.
+3. **Set Environment Variable in Streamlit Cloud Settings**:
+   - In Streamlit Cloud -> App Settings -> **Secrets**, add:
+     ```toml
+     OLLAMA_BASE_URL = "https://<random-id>.trycloudflare.com"
+     OLLAMA_MODEL = "llama3.2:1b"
+     ```
+   - Save and reboot. Your Streamlit web app is now live worldwide!
+
+---
+
+### Option C: Cloud VPS / PaaS with Docker Compose (Render, Railway, RunPod, AWS EC2)
+For high-performance production hosting with GPU acceleration:
+
+1. **Using Docker Compose**:
+   ```bash
+   docker compose up -d --build
+   ```
+   This spins up:
+   - `mindly_ollama`: Official Ollama container on port `11434`.
+   - `mindly_web`: Streamlit interface on port `7860` / `8501`.
+
+2. **On RunPod / Vast.ai (GPU Pods ~$0.20/hour)**:
+   - Deploy a template with PyTorch / Docker.
+   - Run `docker compose up -d` for real-time sub-second LLM and vision inference!
 
 | Test File | Focus Area | Tests | Status |
 | :--- | :--- | :---: | :---: |
