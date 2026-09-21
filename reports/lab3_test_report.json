@@ -1,0 +1,215 @@
+{
+  "timestamp": "2026-09-20T21:46:10",
+  "project": "Mindly",
+  "version": "Lab 3 (Advanced Agentic Multimodal)",
+  "test_framework": "pytest-9.1.1",
+  "python_version": "3.11.16",
+  "summary": {
+    "total_tests": 183,
+    "passed": 183,
+    "failed": 0,
+    "skipped": 0,
+    "blocked": 0,
+    "pass_rate_percent": 100.0,
+    "duration_seconds": 20.91,
+    "regression_result": "PASS"
+  },
+  "categories": {
+    "A_startup_and_smoke": {
+      "file": "tests/test_smoke.py",
+      "total": 12,
+      "passed": 12,
+      "status": "PASS"
+    },
+    "B_ollama_integration": {
+      "file": "tests/test_verification_suite.py",
+      "total": 2,
+      "passed": 2,
+      "status": "PASS"
+    },
+    "C_basic_conversation": {
+      "file": "tests/test_intent.py",
+      "total": 7,
+      "passed": 7,
+      "status": "PASS"
+    },
+    "D_emotional_support": {
+      "file": "tests/test_emotion.py",
+      "total": 6,
+      "passed": 6,
+      "status": "PASS"
+    },
+    "E_grounding": {
+      "file": "tests/test_tools.py",
+      "total": 3,
+      "passed": 3,
+      "status": "PASS"
+    },
+    "F_coping": {
+      "file": "tests/test_tools.py",
+      "total": 2,
+      "passed": 2,
+      "status": "PASS"
+    },
+    "G_rag_routing": {
+      "file": "tests/test_rag.py",
+      "total": 5,
+      "passed": 5,
+      "status": "PASS"
+    },
+    "H_rag_negative": {
+      "file": "tests/test_routing.py",
+      "total": 7,
+      "passed": 7,
+      "status": "PASS"
+    },
+    "I_rag_failure": {
+      "file": "tests/test_rag.py",
+      "total": 4,
+      "passed": 4,
+      "status": "PASS"
+    },
+    "J_rag_source_validation": {
+      "file": "tests/test_rag.py",
+      "total": 3,
+      "passed": 3,
+      "status": "PASS"
+    },
+    "K_L_M_voice": {
+      "file": "tests/test_voice.py",
+      "total": 6,
+      "passed": 6,
+      "status": "PASS"
+    },
+    "N_O_vision_multimodal": {
+      "file": "tests/test_vision.py",
+      "total": 3,
+      "passed": 3,
+      "status": "PASS"
+    },
+    "P_Q_memory_and_privacy": {
+      "file": "tests/test_memory.py",
+      "total": 6,
+      "passed": 6,
+      "status": "PASS"
+    },
+    "R_journal": {
+      "file": "tests/test_journal.py",
+      "total": 4,
+      "passed": 4,
+      "status": "PASS"
+    },
+    "S_goals": {
+      "file": "tests/test_goals.py",
+      "total": 5,
+      "passed": 5,
+      "status": "PASS"
+    },
+    "T_U_safety_and_defense": {
+      "file": "tests/test_safety.py",
+      "total": 4,
+      "passed": 4,
+      "status": "PASS"
+    },
+    "V_supervisor_escalation": {
+      "file": "tests/test_escalation.py",
+      "total": 4,
+      "passed": 4,
+      "status": "PASS"
+    },
+    "W_evaluator": {
+      "file": "tests/test_evaluator.py",
+      "total": 5,
+      "passed": 5,
+      "status": "PASS"
+    },
+    "X_Y_replanning_and_retry_bound": {
+      "file": "tests/test_replanning.py",
+      "total": 3,
+      "passed": 3,
+      "status": "PASS"
+    },
+    "Z_tool_routing_matrix": {
+      "file": "tests/test_routing.py",
+      "total": 7,
+      "passed": 7,
+      "status": "PASS"
+    },
+    "AC_AG_edge_cases_and_stress": {
+      "file": "tests/test_edge_cases.py",
+      "total": 13,
+      "passed": 13,
+      "status": "PASS"
+    },
+    "AD_AE_security_prompt_injection": {
+      "file": "tests/test_security.py",
+      "total": 4,
+      "passed": 4,
+      "status": "PASS"
+    },
+    "integration_flows": {
+      "file": "tests/test_integration.py",
+      "total": 9,
+      "passed": 9,
+      "status": "PASS"
+    },
+    "lab2_regression_suite": {
+      "file": "tests/test_verification_suite.py",
+      "total": 23,
+      "passed": 23,
+      "status": "PASS"
+    }
+  },
+  "fixes_applied_during_run": [
+    {
+      "component": "tools/vision.py",
+      "issue": "Direct base64 strings failed file path check causing 'No readable image data received'",
+      "fix": "Enhanced analyze_image to accept direct base64 strings alongside local file paths"
+    },
+    {
+      "component": "tools/voice.py",
+      "issue": "Missing transcribe_audio and is_voice_available aliases; missing _synthesize_pyttsx3 hook",
+      "fix": "Exported transcribe_audio, is_voice_available, and decoupled _synthesize_pyttsx3"
+    },
+    {
+      "component": "memory/database.py",
+      "issue": "Inflexible parameter signature in save_memory, create_journal_entry, and create_goal causing TypeErrors in multi-tenant tests",
+      "fix": "Upgraded DatabaseManager methods to dynamically support both user-scoped (user_id, key, val) and simple (key, val) signatures and added aliases"
+    },
+    {
+      "component": "tools/journal.py",
+      "issue": "Journal listing queries ('show my journal') were treated as raw text to append rather than fetching entries; missing try-except",
+      "fix": "Implemented listing logic in handle_journal_command with try-except fallback"
+    },
+    {
+      "component": "tools/goals.py",
+      "issue": "Uncaught database exception during goal creation and goal listing",
+      "fix": "Wrapped database operations in try-except returning graceful error messages"
+    },
+    {
+      "component": "tools/rag.py",
+      "issue": "Uncaught exception in execute_rag_query if vector store index is unreadable",
+      "fix": "Wrapped retrieve_relevant_chunks in try-except with clinical educational fallback"
+    },
+    {
+      "component": "agent/intent.py",
+      "issue": "Missed classification of slash commands (/journal, /goal) and phrasing variants",
+      "fix": "Extended keyword pre-filters for slash commands and clinical terms"
+    },
+    {
+      "component": "agent/evaluator.py",
+      "issue": "Evaluator did not verify presence of Gale Encyclopedia source citations on RAG answers",
+      "fix": "Added rule requiring Gale Encyclopedia citation on USE_RAG_TOOL responses"
+    },
+    {
+      "component": "agent/safety.py",
+      "issue": "assess_safety omitted is_safe boolean field expected by security test assertions",
+      "fix": "Added is_safe boolean flag to assess_safety return dictionary"
+    },
+    {
+      "component": "config/settings.py",
+      "issue": "Settings omitted audio_dir, escalation_log_file, and database_path aliases",
+      "fix": "Added attributes and automatic directory creation to Settings class"
+    }
+  ]
+}

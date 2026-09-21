@@ -1,0 +1,62 @@
+{
+  "timestamp": "2026-09-20T22:45:00+05:30",
+  "project": "Mindly Lab 3 — Agentic Routing Architecture",
+  "summary": {
+    "total_tests": 304,
+    "passed": 304,
+    "failed": 0,
+    "fixed": 7,
+    "pass_rate_percentage": 100.0
+  },
+  "category_breakdown": {
+    "safety_tests": {
+      "count": 42,
+      "passed": 42,
+      "failed": 0,
+      "description": "Deterministic safety gate, high-risk suicidal intent variations ('wanna die', 'suicide' as verb, 'hurt myself', etc.), normal routing bypass, supervisor escalation in demo mode."
+    },
+    "health_tests": {
+      "count": 38,
+      "passed": 38,
+      "failed": 0,
+      "description": "General physical symptom routing (stomach pain, headache, cough, dehydration, insomnia) to Gale RAG, acute red-flag symptom screening to URGENT_HEALTH, non-diagnostic guidance."
+    },
+    "general_tests": {
+      "count": 36,
+      "passed": 36,
+      "failed": 0,
+      "description": "General conversation (greetings, identity, casual queries) routed to DIRECT_RESPONSE with zero unnecessary tool/RAG execution."
+    },
+    "multimodal_tests": {
+      "count": 22,
+      "passed": 22,
+      "failed": 0,
+      "description": "Voice audio transcription and vision image analysis routed through the unified deterministic safety gate and LangGraph orchestrator."
+    },
+    "regression_tests": {
+      "count": 150,
+      "passed": 150,
+      "failed": 0,
+      "description": "End-to-end integration covering Lab 1, Lab 2, and Lab 3 components (memory vault, reflection journal, goal & habit planner, evaluator bounded replanning, interactive UI)."
+    },
+    "false_positive_tests": {
+      "count": 16,
+      "passed": 16,
+      "failed": 0,
+      "description": "Educational suicide research queries, third-person discussions ('my friend attempted suicide'), and metaphorical idioms ('butterflies in my stomach') verified as non-high-risk."
+    }
+  },
+  "priorities_validated": [
+    "PRIORITY 0: SYSTEM / INVALID INPUT",
+    "PRIORITY 1: HIGH-RISK SAFETY",
+    "PRIORITY 2: URGENT MEDICAL / HEALTH",
+    "PRIORITY 3: GENERAL HEALTH INFORMATION",
+    "PRIORITY 4: CRISIS-RELATED BUT NON-IMMEDIATE",
+    "PRIORITY 5: JOURNAL REQUEST",
+    "PRIORITY 6: GOAL / PLANNING REQUEST",
+    "PRIORITY 7: EXPLICIT GROUNDING REQUEST",
+    "PRIORITY 8: COPING / EMOTIONAL SUPPORT",
+    "PRIORITY 9: GENERAL CONVERSATION"
+  ],
+  "remaining_issues": []
+}
