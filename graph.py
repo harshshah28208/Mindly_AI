@@ -117,9 +117,10 @@ def create_crisis_node():
         display_status = escalation_result.get("display_card", "Supervisor escalation has been triggered in demo mode.")
 
         # Automated telephony / emergency contact dispatch (SafeSpace inspired)
+        emergency_call_record = None
         try:
-            from tools.emergency_dispatch import dispatch_emergency_notification
-            dispatch_emergency_notification(
+            from tools.emergency_dispatch import initiate_emergency_call
+            emergency_call_record = initiate_emergency_call(
                 risk_level="HIGH",
                 user_input_snippet=user_text or "Crisis detected",
             )
@@ -133,7 +134,8 @@ def create_crisis_node():
             "tool_name": "crisis_support_protocol",
             "tool_result": crisis_text,
             "escalation_status": display_status,
-            "reasoning_summary": "Deterministic safety guard detected HIGH risk indicators; normal agentic routing bypassed, crisis resources delivered, and human supervisor alert triggered.",
+            "emergency_call": emergency_call_record,
+            "reasoning_summary": "Deterministic safety guard detected HIGH risk indicators; normal agentic routing bypassed, crisis resources delivered, and automated emergency telephony call initiated.",
             "evaluation_result": "PASS",
             "final_response": crisis_text,
         }
@@ -639,5 +641,6 @@ def send_message(
         "replan_count": result.get("replan_count", 0),
         "sources": result.get("retrieved_sources", []),
         "escalation": result.get("escalation_status"),
+        "emergency_call": result.get("emergency_call"),
         "vision_result": result.get("vision_result"),
     }

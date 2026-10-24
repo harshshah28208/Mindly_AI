@@ -146,3 +146,27 @@ def find_therapists_endpoint(query: TherapistQuery):
         raise HTTPException(status_code=400, detail="Location query cannot be empty")
     results_md = find_nearby_therapists(query.location.strip())
     return {"location": query.location, "directory_markdown": results_md}
+
+
+class EmergencyCallRequest(BaseModel):
+    contact_number: Optional[str] = Field(None, description="Target phone number")
+    message: Optional[str] = Field(None, description="Spoken voice alert message")
+    risk_level: str = Field("HIGH", description="Risk level")
+
+
+@app.post("/api/emergency/call")
+def trigger_emergency_call_endpoint(req: EmergencyCallRequest):
+    """Trigger automated high-risk emergency telephony voice call via Twilio."""
+    from tools.emergency_dispatch import initiate_emergency_call, get_emergency_dispatch_history
+    result = initiate_emergency_call(
+        risk_level=req.risk_level,
+        user_input_snippet=req.message or "High-risk crisis trigger",
+        contact_number=req.contact_number,
+        spoken_message=req.message,
+    )
+    return {
+        "status": "success",
+        "dispatch": result,
+        "recent_history": get_emergency_dispatch_history(limit=5),
+    }
+

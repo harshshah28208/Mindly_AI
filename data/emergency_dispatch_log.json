@@ -151,5 +151,44 @@
     "message": "Emergency Alert from Mindly Mental Health System: A user has triggered an acute crisis safety protocol. Immediate support personnel review is advised.",
     "status": "SIMULATED_SUPERVISOR_DISPATCH",
     "provider": "internal_supervisor_desk"
+  },
+  {
+    "call_id": "call_6a5d0a349c0f",
+    "timestamp": "2026-10-24T18:24:08.683029+00:00",
+    "type": "VOICE_CALL",
+    "risk_level": "HIGH",
+    "contact_target": "+180****",
+    "full_target": "+18002738255",
+    "snippet_preview": "I want to hurt myself",
+    "spoken_message": "Emergency Alert from Mindly Mental Health Safety System. A user has triggered an acute high-risk safety protocol. Immediate support intervention is advised. Please check the supervisor emergency dashboard or connect with the user immediately.",
+    "status": "SIMULATED_EMERGENCY_CALL_ACTIVE",
+    "provider": "supervisor_telephony_gateway",
+    "call_sid": "CA_5aad651585c842729febda5b21fe912b"
+  },
+  {
+    "call_id": "call_db38f33bbc91",
+    "timestamp": "2026-10-24T18:25:28.727135+00:00",
+    "type": "VOICE_CALL",
+    "risk_level": "HIGH",
+    "contact_target": "+180****",
+    "full_target": "+18002738255",
+    "snippet_preview": "I feel like giving up and ending it",
+    "spoken_message": "Emergency Alert from Mindly Mental Health Safety System. A user has triggered an acute high-risk safety protocol. Immediate support intervention is advised. Please check the supervisor emergency dashboard or connect with the user immediately.",
+    "status": "SIMULATED_EMERGENCY_CALL_ACTIVE",
+    "provider": "supervisor_telephony_gateway",
+    "call_sid": "CA_5d824505c3124811b745d94edc20bb4c"
+  },
+  {
+    "call_id": "call_d476584b9daa",
+    "timestamp": "2026-10-24T18:25:28.819028+00:00",
+    "type": "VOICE_CALL",
+    "risk_level": "HIGH",
+    "contact_target": "+180****",
+    "full_target": "+18002738255",
+    "snippet_preview": "Emergency alert test for high risk",
+    "spoken_message": "Emergency alert test for high risk",
+    "status": "SIMULATED_EMERGENCY_CALL_ACTIVE",
+    "provider": "supervisor_telephony_gateway",
+    "call_sid": "CA_38161ecb74b348f1bd02974a54c71a33"
   }
 ]

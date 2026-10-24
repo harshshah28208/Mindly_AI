@@ -180,6 +180,17 @@ def plan_action(
         }
 
     # --------------------------------------------------------------------------
+    # THERAPIST LOCATOR REQUEST (Inspired by SafeSpace AI)
+    # --------------------------------------------------------------------------
+    from agent.intent import is_therapist_query
+    if detected_intent == "THERAPIST_REQUEST" or is_therapist_query(clean_input):
+        return {
+            "selected_action": "USE_THERAPIST_TOOL",
+            "tool_name": "therapist_locator",
+            "reasoning_summary": "Identified request for professional human counseling or local clinic; routed to therapist locator.",
+        }
+
+    # --------------------------------------------------------------------------
     # PRIORITY 5: JOURNAL REQUEST (Only if not a medical/disease query)
     # --------------------------------------------------------------------------
     if not is_physical_health_query(clean_input) and (
@@ -226,20 +237,6 @@ def plan_action(
             "selected_action": "USE_MEMORY_TOOL",
             "tool_name": "memory_vault",
             "reasoning_summary": "Identified persistent memory instruction; routed to memory vault.",
-        }
-
-    # --------------------------------------------------------------------------
-    # THERAPIST LOCATOR REQUEST (Inspired by SafeSpace AI)
-    # --------------------------------------------------------------------------
-    if detected_intent == "THERAPIST_REQUEST" or any(k in lower for k in [
-        "find therapist", "find a therapist", "therapists near", "therapist near", "psychologist near",
-        "psychiatrist near", "counselor near", "find counseling", "locate therapist", "recommend a therapist",
-        "find a doctor near", "mental health clinic near"
-    ]):
-        return {
-            "selected_action": "USE_THERAPIST_TOOL",
-            "tool_name": "therapist_locator",
-            "reasoning_summary": "Identified request for professional human counseling or local clinic; routed to therapist locator.",
         }
 
     # --------------------------------------------------------------------------

@@ -260,6 +260,19 @@ def is_out_of_scope(user_text: str) -> bool:
     return False
 
 
+def is_therapist_query(user_text: str) -> bool:
+    """Detect whether user input is seeking professional human therapy, counseling, or clinic recommendations."""
+    lower = (user_text or "").lower().strip()
+    if not lower:
+        return False
+    professions = ["therapist", "therapists", "psychologist", "psychologists", "psychiatrist", "psychiatrists", "counselor", "counselors", "counseling", "clinic", "therapy"]
+    actions = ["find", "recommend", "locate", "near", "in", "best", "contact", "list", "directory", "suggest", "look for", "search for", "address", "phone", "appointment"]
+    cities = ["mumbai", "delhi", "bangalore", "new york", "london", "chicago", "san francisco", "toronto"]
+    if any(p in lower for p in professions) and (any(a in lower for a in actions) or any(c in lower for c in cities)):
+        return True
+    return False
+
+
 def classify_intent_heuristic(user_text: str) -> str:
     """Heuristic rule-based intent classification adhering to hierarchical priorities (0-9)."""
     clean = user_text.strip()
@@ -291,15 +304,9 @@ def classify_intent_heuristic(user_text: str) -> str:
         return "OUT_OF_SCOPE"
 
     # THERAPIST LOCATOR REQUEST (Inspired by SafeSpace AI)
-    therapist_triggers = [
-        "find therapist", "find a therapist", "therapists near", "therapist near", "psychologist near",
-        "psychiatrist near", "counselor near", "find counseling", "locate therapist", "recommend a therapist",
-        "find a doctor near", "mental health clinic near", "therapists in", "psychologists in", "counselors in",
-    ]
-    if any(k in lower for k in therapist_triggers) or (
-        "near me" in lower and any(w in lower for w in ["therapist", "psychologist", "counselor", "clinic", "psychiatrist"])
-    ):
+    if is_therapist_query(user_text):
         return "THERAPIST_REQUEST"
+
 
     # PRIORITY 5: Journaling requests
     if any(k in lower for k in [
@@ -391,6 +398,7 @@ Classify the user's message into EXACTLY ONE of the following categories:
 - GOAL_REQUEST (asking to create, view, or complete goals and habits)
 - PLANNING_REQUEST (asking for help organizing or study schedule routines)
 - MEMORY_REQUEST (asking to remember a personal preference or asking what name to call the user)
+- THERAPIST_REQUEST (asking to find, locate, or recommend licensed clinical therapists, psychologists, psychiatrists, counselors, or mental health clinics)
 - CRISIS_RELATED (mentions of self-harm, suicidal ideation, or acute danger)
 - OUT_OF_SCOPE (questions completely unrelated to wellness, mental health, student wellbeing, or medical guidance, such as coding, stock market, sports scores, mechanical repair)
 
@@ -444,7 +452,7 @@ def classify_intent(user_text: str, llm=None) -> str:
         "JOURNAL_REQUEST", "GOAL_REQUEST", "PLANNING_REQUEST",
         "MEMORY_REQUEST", "GROUNDING_REQUEST", "COPING_REQUEST",
         "HEALTH_INFORMATION", "URGENT_HEALTH", "CRISIS_RELATED",
-        "OUT_OF_SCOPE",
+        "OUT_OF_SCOPE", "THERAPIST_REQUEST",
     ]:
         return heuristic_intent
 

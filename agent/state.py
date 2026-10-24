@@ -53,3 +53,4 @@ class AgentState(TypedDict, total=False):
     final_response: str
     audio_output_path: Optional[str]
     escalation_status: Optional[str]
+    emergency_call: Optional[Dict[str, Any]]

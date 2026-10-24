@@ -31,6 +31,7 @@ from rag.vectorstore import vector_store
 from agent.safety import assess_safety, screen_urgent_medical
 from agent.intent import is_out_of_scope, evaluate_math_expression
 from tools.voice import synthesize_speech, transcribe_audio_file
+from tools.emergency_dispatch import initiate_emergency_call, get_emergency_dispatch_history
 try:
     from tools.rag import get_suggested_followups
 except ImportError:
@@ -167,6 +168,25 @@ with st.sidebar:
         help="Synthesizes voice audio response for messages.",
     )
 
+    st.markdown("---")
+    st.markdown("##### 🚨 High-Risk Call System")
+    st.caption("Automated voice telephony dispatch via Twilio.")
+    emergency_contact = st.text_input(
+        "Emergency Target Phone:",
+        value=os.getenv("EMERGENCY_CONTACT", "+18002738255"),
+        help="Recipient phone for high-risk automated voice calls.",
+        key="emergency_target_phone",
+    )
+    if st.button("📞 Test Emergency Voice Call", use_container_width=True, help="Trigger automated crisis telephony call"):
+        with st.spinner("Placing emergency voice alert call..."):
+            call_res = initiate_emergency_call(
+                risk_level="HIGH",
+                user_input_snippet="Manual emergency test via sidebar",
+                contact_number=emergency_contact,
+            )
+            st.success(f"📞 Call Dispatched: {call_res.get('status')}")
+            st.caption(f"Call SID: `{call_res.get('call_sid')}` | Provider: `{call_res.get('provider')}`")
+
     if st.button("🔄 Reset Agent State", use_container_width=True, on_click=reset_session):
         st.toast("Agent conversation state refreshed.", icon="🌿")
 
@@ -212,6 +232,34 @@ def render_agent_trace(act: Dict[str, Any], sources: List[Dict[str, Any]]):
                 st.markdown(f"**👤 Supervisor:** :red[**{esc}**]")
             else:
                 st.markdown("**🧩 Graph State:** :green[**Completed**]")
+
+        if is_high_risk:
+            call_info = act.get("emergency_call") or {}
+            st.markdown(
+                f"""
+                <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid #ef4444; border-radius: 12px; padding: 12px 16px; margin-top: 10px;">
+                    <div style="font-weight: 700; color: #f87171; font-size: 0.98rem; display: flex; align-items: center; gap: 8px;">
+                        📞 AUTOMATED EMERGENCY TELEPHONY CALL DISPATCHED
+                    </div>
+                    <div style="color: #fca5a5; font-size: 0.86rem; margin-top: 4px;">
+                        An emergency phone call alert was automatically routed to crisis personnel / supervisor desk.
+                    </div>
+                    <div style="margin-top: 6px; font-size: 0.82rem; color: #cbd5e1;">
+                        • <b>Status:</b> <span style="color: #4ade80; font-weight: 600;">{call_info.get('status', 'CALL_DISPATCHED')}</span> | 
+                        • <b>Provider:</b> <code>{call_info.get('provider', 'twilio_voice')}</code> | 
+                        • <b>Call SID:</b> <code>{call_info.get('call_sid', 'CA_simulated_dispatch')[:18]}...</code>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            c_call1, c_call2, c_call3 = st.columns(3)
+            with c_call1:
+                st.link_button("📞 Call 988 Lifeline", "tel:988", use_container_width=True)
+            with c_call2:
+                st.link_button("📞 Call Tele-MANAS (14416)", "tel:14416", use_container_width=True)
+            with c_call3:
+                st.link_button("🚨 Emergency (911)", "tel:911", use_container_width=True)
 
 
 # ------------------------------------------------------------------------------
@@ -583,6 +631,23 @@ with tab_safety:
                     st.markdown(f"**Mode:** `{esc.get('mode', 'demo')}`")
     else:
         st.info("No supervisor escalations recorded in this session.")
+
+    st.markdown("---")
+    st.markdown("##### 📞 Emergency Telephony Dispatch Log (Twilio / Supervisor Gateway)")
+    calls = get_emergency_dispatch_history(limit=10)
+    if calls:
+        for c in calls:
+            with st.container(border=True):
+                col_c1, col_c2 = st.columns([3, 1])
+                with col_c1:
+                    st.markdown(f"**Call SID:** `{c.get('call_sid', 'N/A')}` | **Target:** `{c.get('contact_target', 'N/A')}`")
+                    st.markdown(f"**Trigger:** *\"{c.get('snippet_preview', 'Crisis alert')}\"*")
+                    st.caption(f"Provider: {c.get('provider', 'twilio')} | Time: {c.get('timestamp', 'N/A')}")
+                with col_c2:
+                    st.markdown(f"**Status:** :green[**{c.get('status', 'DISPATCHED')}**]")
+                    st.markdown(f"**Type:** `{c.get('type', 'VOICE_CALL')}`")
+    else:
+        st.info("No emergency telephony dispatches logged yet.")
 
 
 

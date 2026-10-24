@@ -58,7 +58,7 @@ class TestSafeSpaceFeatures(unittest.TestCase):
             user_input_snippet="I want to hurt myself",
         )
         self.assertIn("status", dispatch)
-        self.assertIn(dispatch["status"], ["DISPATCHED", "SIMULATED_SUPERVISOR_DISPATCH"])
+        self.assertIn(dispatch["status"], ["DISPATCHED", "CALL_DISPATCHED", "SIMULATED_SUPERVISOR_DISPATCH", "SIMULATED_EMERGENCY_CALL_ACTIVE"])
         self.assertIn("timestamp", dispatch)
 
     def test_05_fastapi_safespace_ask_endpoint(self):
@@ -80,6 +80,41 @@ class TestSafeSpaceFeatures(unittest.TestCase):
         self.assertIn("followups", data)
         self.assertTrue(len(data["followups"]) >= 3)
 
+    def test_07_emergency_voice_call_high_risk(self):
+        """Verify initiate_emergency_call creates valid telephony metadata and logs history."""
+        from tools.emergency_dispatch import initiate_emergency_call, get_emergency_dispatch_history
+        res = initiate_emergency_call(
+            risk_level="HIGH",
+            user_input_snippet="I feel like giving up and ending it",
+            contact_number="+18002738255",
+        )
+        self.assertIn("call_sid", res)
+        self.assertIn("status", res)
+        self.assertEqual(res["risk_level"], "HIGH")
+        self.assertEqual(res["type"], "VOICE_CALL")
+
+        history = get_emergency_dispatch_history(limit=5)
+        self.assertTrue(len(history) >= 1)
+        self.assertEqual(history[0]["risk_level"], "HIGH")
+
+    def test_08_fastapi_emergency_call_endpoint(self):
+        """Verify POST /api/emergency/call triggers automated telephony and returns audit history."""
+        resp = self.client.post(
+            "/api/emergency/call",
+            json={
+                "contact_number": "+18002738255",
+                "message": "Emergency alert test for high risk",
+                "risk_level": "HIGH",
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.json()
+        self.assertEqual(payload["status"], "success")
+        self.assertIn("dispatch", payload)
+        self.assertIn("call_sid", payload["dispatch"])
+        self.assertIn("recent_history", payload)
+
 
 if __name__ == "__main__":
     unittest.main()
+
