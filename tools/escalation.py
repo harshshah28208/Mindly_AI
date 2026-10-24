@@ -110,6 +110,19 @@ class SupervisorEscalationService:
         alert_payload["display_card"] = "Production credentials unconfigured; automatically reverted to demo mode."
         return alert_payload
 
+    def get_escalations(self, limit: int = 50) -> list:
+        """Retrieve recent escalation records from the JSON audit file."""
+        audit_file = settings.escalation_log_file
+        if audit_file.exists():
+            try:
+                records = json.loads(audit_file.read_text(encoding="utf-8"))
+                if isinstance(records, list):
+                    return records[-limit:]
+            except Exception:
+                pass
+        return []
+
 
 # Singleton escalation service
 escalation_service = SupervisorEscalationService()
+

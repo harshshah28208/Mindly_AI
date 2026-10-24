@@ -499,18 +499,19 @@ with tab_safety:
     st.markdown("##### 🚨 Supervisor Escalation Audit Log")
     escalations = db.get_escalations(limit=20)
     if escalations:
-        for esc in escalations:
+        for esc in reversed(escalations):
             with st.container(border=True):
                 c_e1, c_e2 = st.columns([3, 1])
                 with c_e1:
-                    st.markdown(f"**Timestamp:** `{esc.get('timestamp')}`")
-                    st.markdown(f"**Masked Prompt:** *\"{esc.get('user_prompt')}\"*")
-                    st.markdown(f"**Trigger Reason:** {esc.get('reason')}")
+                    st.markdown(f"**Escalation ID:** `{esc.get('escalation_id', 'N/A')}` | **Time:** `{esc.get('timestamp', 'N/A')}`")
+                    trigger_text = esc.get('trigger_category') or esc.get('trigger_snippet') or esc.get('user_prompt') or '[Protected]'
+                    st.markdown(f"**Trigger Snippet:** *\"{trigger_text}\"*")
                 with c_e2:
-                    st.markdown(f"**Status:** `{esc.get('status')}`")
-                    st.markdown(f"**Supervisor:** `{esc.get('supervisor_name')}`")
+                    st.markdown(f"**Risk Level:** :red[**{esc.get('risk_level', 'HIGH')}**]")
+                    st.markdown(f"**Mode:** `{esc.get('mode', 'demo')}`")
     else:
         st.info("No supervisor escalations recorded in this session.")
+
 
 
 # ==============================================================================

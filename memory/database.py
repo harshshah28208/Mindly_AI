@@ -400,6 +400,15 @@ class DatabaseManager:
             conn.commit()
             return cursor.rowcount > 0
 
+    def get_escalations(self, limit: int = 50) -> list:
+        """Retrieve recorded supervisor escalations from JSON audit log."""
+        try:
+            from tools.escalation import escalation_service
+            return escalation_service.get_escalations(limit=limit)
+        except Exception:
+            return []
+
 
 # Singleton database instance
 db = DatabaseManager()
+
