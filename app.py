@@ -25,8 +25,8 @@ import streamlit as st
 
 from config.settings import settings
 from graph import get_mindly_graph, send_message
-from memory.database import db
 from rag.retriever import retrieve_relevant_chunks
+
 from rag.vectorstore import vector_store
 from agent.safety import assess_safety, screen_urgent_medical
 from agent.intent import is_out_of_scope, evaluate_math_expression
@@ -497,8 +497,19 @@ with tab_safety:
 
     st.markdown("---")
     st.markdown("##### 🚨 Supervisor Escalation Audit Log")
-    escalations = db.get_escalations(limit=20)
+    escalations = []
+    try:
+        audit_file = settings.escalation_log_file
+        if audit_file.exists():
+            import json
+            records = json.loads(audit_file.read_text(encoding="utf-8"))
+            if isinstance(records, list):
+                escalations = records[-20:]
+    except Exception:
+        escalations = []
+
     if escalations:
+
         for esc in reversed(escalations):
             with st.container(border=True):
                 c_e1, c_e2 = st.columns([3, 1])
