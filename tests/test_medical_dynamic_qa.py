@@ -75,17 +75,55 @@ class TestDynamicMedicalQA(unittest.TestCase):
         self.assertGreaterEqual(len(followups), 3)
         self.assertTrue(any("acidity" in f.lower() or "acid" in f.lower() or "heartburn" in f.lower() for f in followups))
 
-    def test_05_replanning_preserves_medical_rag_routing(self):
-        """Verify evaluation retry on medical query stays on USE_RAG_TOOL instead of switching to guided reflection."""
-        retry_plan = plan_action(
-            user_input="i am having acidity what to do?",
-            evaluation_result="RETRY",
-            retry_count=1,
-            previous_action="USE_RAG_TOOL",
+    def test_06_knee_pain_rag_clinical_response_and_reason_cure(self):
+        """Verify 'i am having pain in my knee' returns What Is The Reason and Proper Plan How To Cure."""
+        answer, chunks = execute_rag_query("i am having pain in my knee")
+        self.assertTrue(len(chunks) > 0)
+        self.assertIn("Clinical Overview", answer)
+        self.assertIn("What Is the Reason", answer)
+        self.assertIn("Immediate Action Plan", answer)
+        self.assertIn("How to Cure & Prevent", answer)
+        self.assertIn("Warning Signs", answer)
+        self.assertIn("Gale Encyclopedia of Medicine", answer)
+        self.assertIn("Page 6", answer)
+        # Verify no canned refusal was emitted
+        self.assertNotIn("i can't provide a diagnosis", answer.lower())
+        self.assertNotIn("i cannot provide medical advice", answer.lower())
+
+    def test_07_canned_refusal_override(self):
+        """Verify that small LLM canned refusal is rejected and replaced by structured clinical report."""
+        from unittest.mock import MagicMock
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value.content = (
+            "I can't provide a diagnosis or medical advice. If you are experiencing persistent or "
+            "severe pain in your knee, I recommend that you consult a qualified healthcare professional "
+            "for a proper evaluation and treatment plan. Can I help you with any other questions or concerns?"
         )
-        self.assertEqual(retry_plan["selected_action"], "USE_RAG_TOOL")
-        self.assertEqual(retry_plan["tool_name"], "gale_retriever")
+        answer, chunks = execute_rag_query("i am having pain in my knee", llm=mock_llm)
+        self.assertTrue(len(chunks) > 0)
+        self.assertIn("Clinical Overview", answer)
+        self.assertIn("What Is the Reason", answer)
+        self.assertIn("How to Cure & Prevent", answer)
+        self.assertNotIn("can't provide a diagnosis or medical advice", answer)
+
+    def test_08_dynamic_unlisted_symptom(self):
+        """Verify dynamic clinical synthesis for novel unlisted symptoms like shoulder strain."""
+        answer, chunks = execute_rag_query("my shoulder hurts after lifting weights")
+        self.assertTrue(len(chunks) > 0)
+        self.assertIn("Clinical Overview", answer)
+        self.assertIn("What Is the Reason", answer)
+        self.assertIn("Immediate Action Plan", answer)
+        self.assertIn("How to Cure & Prevent", answer)
+        self.assertIn("Warning Signs", answer)
+
+    def test_09_knee_pain_suggested_followups(self):
+        """Verify dynamic suggested follow-ups for knee and joint complaints."""
+        followups = get_suggested_followups("i am having pain in my knee")
+        self.assertIsInstance(followups, list)
+        self.assertGreaterEqual(len(followups), 3)
+        self.assertTrue(any("r.i.c.e." in f.lower() or "quadriceps" in f.lower() or "cold" in f.lower() or "orthopedic" in f.lower() for f in followups))
 
 
 if __name__ == "__main__":
     unittest.main()
+

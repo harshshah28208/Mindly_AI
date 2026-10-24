@@ -215,8 +215,23 @@ def render_agent_trace(act: Dict[str, Any], sources: List[Dict[str, Any]]):
         c1, c2 = st.columns(2)
         with c1:
             risk = act.get("risk_level", "LOW")
-            risk_color = "red" if risk == "HIGH" else ("orange" if risk == "MEDIUM" else "green")
-            st.markdown(f"**🛡️ Risk Level:** :{risk_color}[**{risk}**]")
+            health_prio = act.get("health_priority", "NONE")
+            action = act.get("action", "DIRECT_RESPONSE")
+
+            if risk == "HIGH" or action == "CRISIS_RESPONSE":
+                risk_label = "HIGH (Crisis Alert)"
+                risk_color = "red"
+            elif health_prio == "URGENT" or (action == "USE_RAG_TOOL" and act.get("tool") == "urgent_medical_protocol"):
+                risk_label = "HIGH (Urgent Medical)"
+                risk_color = "red"
+            elif risk == "MEDIUM":
+                risk_label = "MEDIUM (Acute Distress)"
+                risk_color = "orange"
+            else:
+                risk_label = "LOW (Safe / Routine)"
+                risk_color = "green"
+
+            st.markdown(f"**🛡️ Risk Level:** :{risk_color}[**{risk_label}**]")
             st.markdown(f"**🎯 Intent Detected:** `{act.get('intent', 'GENERAL_CONVERSATION')}`")
             st.markdown(f"**💭 Emotional State:** `{act.get('emotion', 'neutral')}`")
             st.markdown(f"**⚡ Planned Action:** `{act.get('action', 'DIRECT_RESPONSE')}`")
@@ -590,8 +605,23 @@ with tab_safety:
         col_s1, col_s2, col_s3, col_s4 = st.columns(4)
         with col_s1:
             risk = safety_eval["risk_level"]
-            col_color = "red" if risk == "HIGH" else "green"
-            st.metric("Risk Level", f"{risk}", delta="SAFE" if risk == "LOW" else "GUARD TRIGGERED", delta_color="normal" if risk == "LOW" else "inverse")
+            if urgent_eval["is_urgent"] and risk == "LOW":
+                effective_risk = "URGENT (Medical)"
+                delta_lbl = "RED FLAG"
+                delta_col = "inverse"
+            elif risk == "HIGH":
+                effective_risk = "HIGH (Crisis)"
+                delta_lbl = "CRISIS OVERRIDE"
+                delta_col = "inverse"
+            elif risk == "MEDIUM":
+                effective_risk = "MEDIUM (Distress)"
+                delta_lbl = "DISTRESS TRIGGER"
+                delta_col = "inverse"
+            else:
+                effective_risk = "LOW (Safe)"
+                delta_lbl = "SAFE"
+                delta_col = "normal"
+            st.metric("Risk Level", effective_risk, delta=delta_lbl, delta_color=delta_col)
         with col_s2:
             st.metric("Urgent Medical", "YES" if urgent_eval["is_urgent"] else "NO")
         with col_s3:

@@ -124,7 +124,7 @@ def chat_extended(query: AskQuery):
     )
 
     resp_text = result.get("response", "")
-    followups = get_suggested_followups(resp_text)
+    followups = get_suggested_followups(query.message.strip()) or get_suggested_followups(resp_text)
 
     return ExtendedChatResponse(
         response=resp_text,

@@ -26,30 +26,41 @@ HIGH_RISK_PATTERNS: List[re.Pattern] = [
     re.compile(r"\b(?:better\s+off\s+dead|everyone\s+(?:would\s+be\s+)?better\s+off\s+without\s+me)\b", re.IGNORECASE),
     # 4. End my life / take my own life
     re.compile(r"\b(?:end\s+my\s+life|ending\s+my\s+life|end\s+it\s+all|ending\s+it\s+all)\b", re.IGNORECASE),
+    re.compile(r"\b(?:want\s+to|wanna|ready\s+to|gonna|going\s+to|planning\s+to|plan\s+to|decided\s+to)\s+end\s+it(?:\s+all)?\b", re.IGNORECASE),
     re.compile(r"\b(?:take\s+my\s+own\s+life|taking\s+my\s+own\s+life|decided\s+to\s+end\s+my\s+life)\b", re.IGNORECASE),
-    # 5. Don't want to live
+    # 5. Don't want to live / giving up on life
     re.compile(r"\b(?:don't|dont)\s+(?:want\s+to|wanna)\s+(?:live|exist|wake\s+up)\s*(?:anymore|any\s*more)?\b", re.IGNORECASE),
     re.compile(r"\b(?:can't|cant)\s+go\s+on\s+living\b", re.IGNORECASE),
     re.compile(r"\b(?:no\s+reason|nothing)\s+to\s+live\s+for\b", re.IGNORECASE),
+    re.compile(r"\b(?:give\s+up|giving\s+up)\s+(?:on\s+)?(?:life|living|myself)\b", re.IGNORECASE),
+    re.compile(r"\b(?:done\s+with|tired\s+of)\s+(?:life|living)\b", re.IGNORECASE),
     # 6. Self-harm / cutting / hurting oneself
     re.compile(r"\b(?:hurt|hurting|harm|harming|cut|cutting|injure|injuring)\s+(?:my\s*self|myself)\b", re.IGNORECASE),
     re.compile(r"\b(?:might|gonna|going\s+to|want\s+to|wanna|thinking\s+(?:about|of))\s+(?:hurt|hurting|harm|harming|cut|cutting)\s+myself\b", re.IGNORECASE),
     # 7. Lethal methods
     re.compile(r"\b(?:hang|hanging)\s+myself\b", re.IGNORECASE),
     re.compile(r"\b(?:overdose\s+on\s+pills|swallow\s+pills\s+to\s+die|jump\s+off\s+a\s+bridge)\b", re.IGNORECASE),
-    # 8. Active suicidal state
-    re.compile(r"\b(?:i\s+am|i'm|feeling|feel)\s+(?:suicidal|thinking\s+of\s+suicide)\b", re.IGNORECASE),
-    re.compile(r"\bsuicidal(?:\s+thoughts|\s+ideation|\s+feelings|\s+urges)\b", re.IGNORECASE),
+    # 8. Active suicidal state & ideation
+    re.compile(r"\b(?:i\s+am|i'm|feeling|feel|getting|been|feel\s+so|feeling\s+so|am\s+really)\s+(?:\w+\s+)?suicidal\b", re.IGNORECASE),
+    re.compile(r"\b(?:suicidal|suicide)\b", re.IGNORECASE),
+    re.compile(r"\bwish\s+i\s+(?:was|were|could\s+be)\s+dead\b", re.IGNORECASE),
+    re.compile(r"\bwish\s+i\s+(?:could\s+die|never\s+woke\s+up|wasn't\s+alive|was\s+not\s+alive)\b", re.IGNORECASE),
+    re.compile(r"\b(?:hate\s+being\s+alive|don't\s+deserve\s+to\s+live|dont\s+deserve\s+to\s+live)\b", re.IGNORECASE),
 ]
 
 # Patterns for MEDIUM-risk distress (acute distress/hopelessness without explicit self-harm statement)
 MEDIUM_RISK_PATTERNS: List[re.Pattern] = [
-    re.compile(r"\b(?:can't\s+take\s+this|cant\s+take\s+this)\s+anymore\b", re.IGNORECASE),
-    re.compile(r"\b(?:feel|feeling)\s+(?:completely\s+)?hopeless\b", re.IGNORECASE),
-    re.compile(r"\b(?:no\s+point\s+in\s+anything|nothing\s+matters\s+anymore)\b", re.IGNORECASE),
-    re.compile(r"\b(?:severe\s+panic|having\s+a\s+panic\s+attack|unbearable\s+emotional\s+pain)\b", re.IGNORECASE),
-    re.compile(r"\b(?:breaking\s+down|falling\s+apart\s+completely)\b", re.IGNORECASE),
-    re.compile(r"\b(?:nobody\s+cares\s+about\s+me|nobody\s+would\s+miss\s+me)\b", re.IGNORECASE),
+    re.compile(r"\b(?:can't\s+take\s+this|cant\s+take\s+this|can't\s+handle\s+this|cant\s+handle\s+this)\s*(?:anymore|any\s*more)?\b", re.IGNORECASE),
+    re.compile(r"\b(?:can't|cant|cannot|unable\s+to)\s+cope(?:\s+anymore|\s+with\s+this)?\b", re.IGNORECASE),
+    re.compile(r"\b(?:feel|feeling|completely|totally|lost\s+all)\s+hopeless\b", re.IGNORECASE),
+    re.compile(r"\b(?:no\s+point\s+in\s+anything|nothing\s+matters\s+anymore|no\s+hope\s+left)\b", re.IGNORECASE),
+    re.compile(r"\b(?:panic\s+attack|anxiety\s+attack)\b", re.IGNORECASE),
+    re.compile(r"\b(?:severe\s+panic|severe\s+distress|severe\s+anxiety|extreme\s+anxiety|unbearable\s+(?:emotional\s+)?pain)\b", re.IGNORECASE),
+    re.compile(r"\b(?:breaking\s+down|breakdown|falling\s+apart(?:\s+completely)?)\b", re.IGNORECASE),
+    re.compile(r"\b(?:completely|totally|deeply|extremely|so)\s+overwhelmed\b", re.IGNORECASE),
+    re.compile(r"\boverwhelmed\s+and\s+(?:panicking|crying|terrified|scared|can't)\b", re.IGNORECASE),
+    re.compile(r"\b(?:can't\s+stop\s+crying|cant\s+stop\s+crying)\b", re.IGNORECASE),
+    re.compile(r"\b(?:feel\s+worthless|feeling\s+worthless|nobody\s+cares\s+about\s+me|nobody\s+would\s+miss\s+me)\b", re.IGNORECASE),
 ]
 
 
