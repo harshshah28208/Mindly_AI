@@ -25,9 +25,9 @@ from agent.safety import assess_safety, is_educational_or_third_person, screen_u
 
 def plan_action(
     user_input: str,
-    detected_intent: str,
-    detected_emotion: str,
-    risk_level: str,
+    detected_intent: Optional[str] = None,
+    detected_emotion: str = "neutral",
+    risk_level: str = "LOW",
     safety_status: Optional[str] = None,
     health_priority: Optional[str] = None,
     input_type: str = "text",
@@ -47,6 +47,9 @@ def plan_action(
             - reasoning_summary: Safe, high-level non-private explanation
     """
     clean_input = (user_input or "").strip()
+    if detected_intent is None:
+        from agent.intent import classify_intent
+        detected_intent = classify_intent(clean_input)
     lower = clean_input.lower()
 
     # --------------------------------------------------------------------------
@@ -76,7 +79,13 @@ def plan_action(
     # HANDLE REPLANNING / RETRY FROM EVALUATOR (Bounded to non-high-risk loops)
     # --------------------------------------------------------------------------
     if evaluation_result == "RETRY" and retry_count > 0:
-        if previous_action == "USE_RAG_TOOL":
+        if is_physical_health_query(clean_input) or health_priority in ["ROUTINE", "URGENT"]:
+            return {
+                "selected_action": "USE_RAG_TOOL",
+                "tool_name": "gale_retriever",
+                "reasoning_summary": "Re-evaluating clinical query: ensuring comprehensive medical response from Gale Encyclopedia of Medicine.",
+            }
+        elif previous_action == "USE_RAG_TOOL":
             return {
                 "selected_action": "USE_COPING_TOOL",
                 "tool_name": "coping_strategy",

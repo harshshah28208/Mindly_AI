@@ -31,6 +31,7 @@ from rag.vectorstore import vector_store
 from agent.safety import assess_safety, screen_urgent_medical
 from agent.intent import is_out_of_scope, evaluate_math_expression
 from tools.voice import synthesize_speech, transcribe_audio_file
+from tools.rag import get_suggested_followups
 
 # ------------------------------------------------------------------------------
 # STREAMLIT PAGE CONFIGURATION
@@ -58,13 +59,34 @@ st.markdown(
     }
 
     .stButton > button {
-        border-radius: 10px;
+        border-radius: 12px;
         font-weight: 500;
-        transition: all 0.15s ease-in-out;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .stButton > button:hover {
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+        transform: translateY(-1px);
+    }
+
+    /* Gemini & ChatGPT Style Follow-Up Suggestion Pills */
+    .followup-header {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: #818cf8;
+        margin-top: 12px;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    div[data-testid="stChatMessage"] {
+        border-radius: 18px;
+        padding: 16px 20px;
+        margin-bottom: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
     }
     </style>""",
     unsafe_allow_html=True,
@@ -224,17 +246,28 @@ with tab_chat:
         c_v1, c_v2 = st.columns(2)
         with c_v1:
             st.markdown("**🎙️ Audio Voice Message**")
-            audio_upload = st.file_uploader("Upload audio recording (.wav, .mp3, .ogg):", type=["wav", "mp3", "ogg"], key="audio_uploader")
-            if audio_upload is not None:
-                audio_bytes = audio_upload.read()
-                st.audio(audio_bytes)
-                with st.spinner("Transcribing audio message..."):
-                    transcript = transcribe_audio_file(audio_bytes)
-                    if transcript:
-                        st.info(f"Transcribed: *\"{transcript}\"*")
-                        if st.button("Send Audio Transcript to Agent", use_container_width=True):
-                            st.session_state.pending_prompt = transcript
-                            st.rerun()
+            
+            # Browser microphone live recording (if supported)
+            mic_audio = None
+            if hasattr(st, "audio_input"):
+                mic_audio = st.audio_input("Record directly from microphone:", key="mic_recorder")
+
+            audio_upload = st.file_uploader("Or upload audio (.wav, .mp3, .ogg):", type=["wav", "mp3", "ogg"], key="audio_uploader")
+            
+            selected_audio = mic_audio if mic_audio is not None else audio_upload
+            if selected_audio is not None:
+                audio_bytes = selected_audio.getvalue()
+                if audio_bytes and len(audio_bytes) > 0:
+                    st.audio(audio_bytes)
+                    with st.spinner("Transcribing audio message..."):
+                        transcript = transcribe_audio_file(audio_bytes)
+                        if transcript:
+                            st.info(f"Transcribed: *\"{transcript}\"*")
+                            if st.button("Send Audio Transcript to Agent", key="btn_send_voice_transcript", use_container_width=True):
+                                st.session_state.pending_prompt = transcript
+                                st.rerun()
+                        else:
+                            st.warning("Could not detect clear speech. Please ensure microphone audio or type your query.")
 
         with c_v2:
             st.markdown("**📷 Medical Image Inspection**")
@@ -268,6 +301,18 @@ with tab_chat:
             act = msg.get("activity")
             if act and msg["role"] == "assistant":
                 render_agent_trace(act, sources)
+
+            # ChatGPT & Gemini Style Interactive Follow-Up Questions (for the latest assistant response)
+            if msg["role"] == "assistant" and idx == len(st.session_state.messages) - 1:
+                followups = msg.get("followups") or get_suggested_followups(msg["content"])
+                if followups:
+                    st.markdown("<div class='followup-header'>✨ <b>Suggested Follow-Up Questions</b></div>", unsafe_allow_html=True)
+                    f_col1, f_col2 = st.columns(2)
+                    for f_i, f_q in enumerate(followups[:4]):
+                        with (f_col1 if f_i % 2 == 0 else f_col2):
+                            if st.button(f"💡 {f_q}", key=f"fup_btn_{idx}_{f_i}", use_container_width=True):
+                                st.session_state.pending_prompt = f_q
+                                st.rerun()
 
     # Chat Action Controls
     if st.session_state.messages:
@@ -349,12 +394,16 @@ with tab_chat:
                 # Agent Trace Telemetry
                 render_agent_trace(result, retrieved_srcs)
 
+                # Generate ChatGPT / Gemini style follow-up suggestions
+                fups = get_suggested_followups(resp_text)
+
                 st.session_state.messages.append({
                     "role": "assistant",
                     "content": resp_text,
                     "activity": result,
                     "sources": retrieved_srcs,
                     "audio_path": audio_file_path,
+                    "followups": fups,
                 })
 
 

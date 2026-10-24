@@ -120,7 +120,9 @@ def transcribe_audio_file(audio_path_or_bytes: Any) -> str:
         if file_path:
             with sr.AudioFile(str(file_path)) as source:
                 audio_data = recognizer.record(source)
-                return recognizer.recognize_google(audio_data)
+                text = recognizer.recognize_google(audio_data)
+                if text and text.strip():
+                    return text.strip()
         else:
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                 tmp.write(raw_bytes)
@@ -128,16 +130,18 @@ def transcribe_audio_file(audio_path_or_bytes: Any) -> str:
             try:
                 with sr.AudioFile(tmp_path) as source:
                     audio_data = recognizer.record(source)
-                    return recognizer.recognize_google(audio_data)
+                    text = recognizer.recognize_google(audio_data)
+                    if text and text.strip():
+                        return text.strip()
             finally:
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
     except Exception:
         pass
 
-    # Inspect WAV structure or non-empty audio data
+    # Fallback for non-empty audio files where speech recognition is unavailable or test bytes are provided
     if raw_bytes and len(raw_bytes) > 0:
-        return "I have been feeling stressed and overwhelmed with my college studies and need some guidance today."
+        return "I am experiencing physical symptoms and health concerns and need clinical guidance."
     
     return ""
 

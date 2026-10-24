@@ -132,16 +132,53 @@ def is_physical_health_query(user_text: str) -> bool:
     ]):
         return False
 
-    # 4. Specific diseases, clinical conditions, disorders, and pathology
+    # 4. Dynamic Action / Cure / Remedy / Treatment inquiry patterns
+    if re.search(
+        r"\b(?:what\s+(?:to\s+do|can\s+i\s+do|should\s+i\s+(?:do|take|eat|drink))\s+for|how\s+to\s+(?:cure|treat|heal|relieve|reduce|stop|manage|handle)|how\s+can\s+i\s+(?:cure|treat|relieve|stop)|(?:cure|treatment|remedy|remedies|home\s+remedy|home\s+remedies|medicine|medication)\s+for|how\s+to\s+get\s+rid\s+of)\b",
+        lower,
+    ):
+        return True
+
+    # 5. Dynamic Reason, Etiology, and Cause inquiry patterns
+    if re.search(
+        r"\b(?:what\s+is\s+the\s+reason\s+(?:for|behind)|why\s+do\s+i\s+have|why\s+am\s+i\s+having|what\s+causes?|reasons?\s+for|causes?\s+of)\b",
+        lower,
+    ):
+        return True
+
+    # 6. Dynamic Symptom & Bodily Sensation complaints ("I am having acidity", "I have gas", etc.)
+    if re.search(
+        r"\b(?:having|have|got|feeling|suffering\s+from|experiencing|struggling\s+with)\s+(?:an?\s+)?(?:acute\s+|chronic\s+|mild\s+|severe\s+)?(?:acid(?:ity)?|heartburn|acid\s+reflux|gerd|gas|bloat(?:ing)?|indigestion|dyspepsia|nausea|vomit(?:ing)?|cramp(?:s|ing)?|burn(?:ing)?|pain(?:ing)?|ache|aching|fever|chills?|shivering|cough(?:ing)?|cold|congestion|sore\s+throat|diarrhea|constipation|dizz(?:y|iness)|vertigo|migraine|headache|weakness|fatigue|palpitation(?:s)?|rash(?:es)?|swelling|infection|stiffness|spasm(?:s)?|discomfort|sleeplessness|insomnia|itch(?:ing)?|shortness\s+of\s+breath)\b",
+        lower,
+    ):
+        return True
+
+    # 7. Dynamic Anatomical complaints ("my stomach is burning", "chest tightness", etc.)
+    if re.search(
+        r"\b(?:my\s+)?(?:stomach|abdomen|gut|belly|tummy|chest|head|throat|back|neck|shoulder|knee|joints?|eyes?|ears?|lungs?|bowels?|muscles?|skin|esophagus)\s+(?:hurts?|aches?|pains?|is\s+burning|is\s+upset|is\s+aching|is\s+cramping|is\s+swollen|is\s+stiff|is\s+paining|is\s+tight)\b",
+        lower,
+    ):
+        return True
+    if re.search(
+        r"\b(?:burning|pain|cramp(?:s|ing)?|ache|aching|tightness|heaviness|discomfort|soreness)\s+in\s+(?:my\s+)?(?:stomach|abdomen|gut|belly|tummy|chest|head|throat|back|neck|shoulder|knee|joints?|eyes?|ears?|lungs?|bowels?|muscles?|body)\b",
+        lower,
+    ):
+        return True
+
+    # 8. Clinical disease suffixes (-itis, -algia, -emia, -pathy, -osis)
+    if re.search(r"\b\w+(?:itis|algia|emia|opathy|osis)\b", lower):
+        return True
+
+    # 9. Specific diseases, clinical conditions, disorders, and pathology
     if any(k in lower for k in [
+        "acidity", "acid reflux", "gerd", "heartburn", "indigestion", "gastritis", "dyspepsia",
         "hypertension", "high blood pressure", "low blood pressure", "hypotension",
         "migraine", "headache", "cluster headache", "tension headache",
         "diabetes", "diabetic", "blood sugar", "glucose", "insulin",
         "asthma", "bronchitis", "pneumonia", "wheezing", "respiratory", "lung", "lungs",
         "stomach pain", "abdominal pain", "pain in my stomach", "pain in stomach", "stomach hurts",
         "stomach hurt", "stomach ache", "stomachache", "belly ache", "tummy hurt",
-        "acid reflux", "heartburn", "indigestion", "gastritis", "dyspepsia", "cramping in my stomach",
-        "ulcer", "peptic ulcer", "gerd", "irritable bowel", "ibs", "colitis",
+        "ulcer", "peptic ulcer", "irritable bowel", "ibs", "colitis", "bloating",
         "insomnia", "sleep disorder", "sleep apnea", "restless legs", "circadian",
         "arthritis", "osteoarthritis", "rheumatoid", "joint pain", "back pain", "neck pain", "gout",
         "fever", "cough", "coughing", "sore throat", "throat hurt", "cold", "flu", "influenza",
@@ -153,11 +190,11 @@ def is_physical_health_query(user_text: str) -> bool:
         "allergy", "allergies", "allergic", "eczema", "dermatitis", "hives", "rash",
         "depression", "clinical depression", "depressive disorder",
         "cancer", "tumor", "tumor cells", "biopsy", "oncology",
-        "nausea", "nauseous", "vomiting", "vomit", "diarrhea", "constipation"
+        "nausea", "nauseous", "vomiting", "vomit", "diarrhea", "constipation", "vertigo"
     ]):
         return True
 
-    # 5. General medical and clinical vocabulary
+    # 10. General medical and clinical vocabulary
     if any(k in lower for k in [
         "disease", "diseases", "disorder", "disorders", "syndrome", "symptom", "symptoms",
         "diagnosis", "prognosis", "etiology", "pathology", "clinical causes", "clinical management",
@@ -165,12 +202,6 @@ def is_physical_health_query(user_text: str) -> bool:
         "how to treat", "treatment for", "cure for", "medicine for", "management of",
         "goals of treatment", "therapeutic management", "clinical therapies", "remedies for"
     ]):
-        return True
-
-    # 6. General regex: "I have/am having [pain/ache/cramp] in my [body part]"
-    if re.search(r"\b(?:have|having|feeling|got)\s+(?:pain|ache|aching|cramps?|discomfort|soreness)\s+in\s+my\s+\w+", lower):
-        return True
-    if re.search(r"\bmy\s+(?:stomach|abdomen|head|back|chest|neck|throat|knee|shoulder|gut|belly|leg|arm)\s+(?:hurts?|aches?|pains?)\b", lower):
         return True
 
     return False
