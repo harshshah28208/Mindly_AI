@@ -204,18 +204,18 @@ with tab_chat:
 
     with col_p1:
         if st.button("🩺 Clinical RAG Test", use_container_width=True):
-            st.session_state.pending_prompt = "What are the common causes and symptoms of hypertension?"
+            st.session_state.pending_prompt = "What are the common causes and clinical management of hypertension?"
             st.rerun()
     with col_p2:
-        if st.button("🔬 Brain-Gut Symptom", use_container_width=True):
-            st.session_state.pending_prompt = "Why does my stomach hurt badly when I get anxious before exams?"
+        if st.button("🔬 Brain-Gut Axis", use_container_width=True):
+            st.session_state.pending_prompt = "Why does acute stress cause stomach pain and digestive cramping?"
             st.rerun()
     with col_p3:
-        if st.button("🧮 Math / Scope Test", use_container_width=True):
-            st.session_state.pending_prompt = "What is 2+2?"
+        if st.button("🛡️ Domain Scope Test", use_container_width=True):
+            st.session_state.pending_prompt = "Can you calculate 2+3 or write a python script?"
             st.rerun()
     with col_p4:
-        if st.button("🚨 Urgent Medical Test", use_container_width=True):
+        if st.button("🚨 Acute Red-Flag Screening", use_container_width=True):
             st.session_state.pending_prompt = "I have sudden severe crushing chest pain, difficulty breathing, and fainting."
             st.rerun()
 
@@ -476,7 +476,6 @@ with tab_safety:
         safety_eval = assess_safety(test_prompt.strip())
         urgent_eval = screen_urgent_medical(test_prompt.strip())
         scope_eval = is_out_of_scope(test_prompt.strip())
-        math_eval = evaluate_math_expression(test_prompt.strip())
 
         col_s1, col_s2, col_s3, col_s4 = st.columns(4)
         with col_s1:
@@ -486,9 +485,9 @@ with tab_safety:
         with col_s2:
             st.metric("Urgent Medical", "YES" if urgent_eval["is_urgent"] else "NO")
         with col_s3:
-            st.metric("Out of Scope", "YES" if scope_eval else "NO")
+            st.metric("Domain Scope", "OUT OF SCOPE" if scope_eval else "IN SCOPE")
         with col_s4:
-            st.metric("Math Expression", f"{math_eval['ans']}" if math_eval else "NO")
+            st.metric("Guardrail Status", "NON-COMPLIANT" if scope_eval else "COMPLIANT", delta="REFUSED" if scope_eval else "IN-SCOPE", delta_color="inverse" if scope_eval else "normal")
 
         if safety_eval["risk_level"] == "HIGH":
             st.error("🚨 HIGH RISK DETECTED: Normal agentic routing bypassed. Crisis response & supervisor alert triggered.")

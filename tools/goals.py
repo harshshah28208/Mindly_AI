@@ -40,7 +40,29 @@ def handle_goal_command(text: str) -> str:
         except Exception as exc:
             return f"Error: Unable to complete goal - {str(exc)}"
 
-    # 3. Create goal
+    # Guard against medical/disease/health inquiries or general questions accidentally reaching goal creation
+    if any(k in lower for k in [
+        "hypertension", "diabetes", "migraine", "pain", "headache", "stomach", "symptom",
+        "disease", "treatment", "doctor", "medicine", "fever", "asthma", "cancer", "blood pressure",
+        "what is", "why does", "how to treat", "causes of", "symptoms of"
+    ]):
+        return (
+            "🌿 **Mindly Clinical Information Notice**:\n\n"
+            "This inquiry relates to clinical medical and health knowledge. "
+            "Mindly retrieves grounded health insights from the *Gale Encyclopedia of Medicine*. "
+            "Please ask your health question directly to receive educational clinical guidance!"
+        )
+
+    # 3. Create goal - only if explicit goal-setting phrasing is present
+    is_explicit_goal = any(k in lower for k in ["/goal", "create a goal", "create goal", "set a goal", "set goal", "add a goal", "my goal is to"])
+    if not is_explicit_goal:
+        return (
+            "🎯 **Goal Setting Assistant**:\n\n"
+            "To save a personal habit or wellness goal, please use the format:\n"
+            "• `/goal <your goal>` (e.g. */goal Walk 20 minutes every morning*)\n"
+            "• *'Create a goal to study for 45 minutes'*."
+        )
+
     # Strip prefixes like "create goal:", "set a goal to", "i want to"
     title = re.sub(
         r"^(?:please\s+)?(?:/goal|create\s+(?:a\s+)?goal\s+(?:to\s+)?|set\s+(?:a\s+)?goal\s+(?:to\s+)?|add\s+(?:a\s+)?goal\s+(?:to\s+)?|my\s+goal\s+is\s+to\s+)",

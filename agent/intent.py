@@ -86,9 +86,25 @@ INTENT_CATEGORIES = [
 ]
 
 
+def is_math_query(text: str) -> bool:
+    """Detect whether user input is an arithmetic computation or math query."""
+    clean = (text or "").strip().lower()
+    if not clean:
+        return False
+    if evaluate_math_expression(clean) is not None:
+        return True
+    if re.search(r"\b(?:calculate|calc|math|arithmetic|solve\s+equation|evaluate)\b", clean) and re.search(r"[\d\+\-\*\/\^\=]", clean):
+        return True
+    if any(q in clean for q in ["can you do math", "calculate 2", "what is 2", "can you calculate", "solve this equation", "how much is 2"]):
+        return True
+    return False
+
+
 def is_physical_health_query(user_text: str) -> bool:
-    """Detect whether user input describes a physical health symptom or medical inquiry."""
+    """Detect whether user input describes a physical health symptom, disease, or medical inquiry."""
     lower = user_text.lower().strip()
+    if not lower:
+        return False
 
     # 1. Exclude idiomatic or purely psychological metaphors
     if any(m in lower for m in [
@@ -116,37 +132,98 @@ def is_physical_health_query(user_text: str) -> bool:
     ]):
         return False
 
-    # 4. Specific stomach / abdominal pain and digestive symptoms
+    # 4. Specific diseases, clinical conditions, disorders, and pathology
     if any(k in lower for k in [
-        "stomach pain", "pain in my stomach", "pain in stomach", "stomach hurts",
-        "stomach hurt", "stomach ache", "stomachache", "abdominal pain", "abdomen pain",
-        "pain in my abdomen", "cramps in my stomach", "stomach cramps", "belly ache",
-        "tummy hurt", "hurts in my stomach", "why does my stomach hurt", "what causes stomach",
-        "stomach hurts because", "stomach hurts badly", "acid reflux", "heartburn", "indigestion",
-        "gastritis", "dyspepsia", "cramping in my stomach"
+        "hypertension", "high blood pressure", "low blood pressure", "hypotension",
+        "migraine", "headache", "cluster headache", "tension headache",
+        "diabetes", "diabetic", "blood sugar", "glucose", "insulin",
+        "asthma", "bronchitis", "pneumonia", "wheezing", "respiratory", "lung", "lungs",
+        "stomach pain", "abdominal pain", "pain in my stomach", "pain in stomach", "stomach hurts",
+        "stomach hurt", "stomach ache", "stomachache", "belly ache", "tummy hurt",
+        "acid reflux", "heartburn", "indigestion", "gastritis", "dyspepsia", "cramping in my stomach",
+        "ulcer", "peptic ulcer", "gerd", "irritable bowel", "ibs", "colitis",
+        "insomnia", "sleep disorder", "sleep apnea", "restless legs", "circadian",
+        "arthritis", "osteoarthritis", "rheumatoid", "joint pain", "back pain", "neck pain", "gout",
+        "fever", "cough", "coughing", "sore throat", "throat hurt", "cold", "flu", "influenza",
+        "infection", "viral infection", "bacterial infection", "strep",
+        "anemia", "iron deficiency", "dehydration", "electrolyte",
+        "thyroid", "hypothyroidism", "hyperthyroidism", "goiter",
+        "heart disease", "cardiac", "chest pain", "angina", "palpitations", "arrhythmia", "cholesterol",
+        "kidney", "kidney stone", "kidney stones", "uti", "urinary tract",
+        "allergy", "allergies", "allergic", "eczema", "dermatitis", "hives", "rash",
+        "depression", "clinical depression", "depressive disorder",
+        "cancer", "tumor", "tumor cells", "biopsy", "oncology",
+        "nausea", "nauseous", "vomiting", "vomit", "diarrhea", "constipation"
     ]):
         return True
 
-    # 5. General bodily pains, common symptoms, conditions, and medical queries
+    # 5. General medical and clinical vocabulary
     if any(k in lower for k in [
-        "headache", "migraine", "back pain", "chest pain", "joint pain", "neck pain",
-        "throat hurt", "sore throat", "why does my throat hurt", "coughing", "cough",
-        "coughing for three days", "been coughing", "nausea", "nauseous", "vomiting",
-        "vomit", "fever", "diarrhea", "hypertension", "blood pressure", "insomnia",
-        "dehydration", "what is dehydration", "iron deficiency", "anemia",
-        "symptoms associated with iron deficiency", "causes of back pain",
-        "causes of insomnia", "common causes of", "what is anxiety", "sleep hygiene",
-        "causes nausea", "what causes nausea", "symptoms of migraine", "symptoms of hypertension",
-        "symptoms of", "what is hypertension", "medical encyclopedia", "gale encyclopedia",
-        "medical literature", "clinical causes", "what does medical"
+        "disease", "diseases", "disorder", "disorders", "syndrome", "symptom", "symptoms",
+        "diagnosis", "prognosis", "etiology", "pathology", "clinical causes", "clinical management",
+        "medical encyclopedia", "gale encyclopedia", "medical literature", "medical advice",
+        "how to treat", "treatment for", "cure for", "medicine for", "management of",
+        "goals of treatment", "therapeutic management", "clinical therapies", "remedies for"
     ]):
         return True
 
     # 6. General regex: "I have/am having [pain/ache/cramp] in my [body part]"
     if re.search(r"\b(?:have|having|feeling|got)\s+(?:pain|ache|aching|cramps?|discomfort|soreness)\s+in\s+my\s+\w+", lower):
         return True
-    if re.search(r"\bmy\s+(?:stomach|abdomen|head|back|chest|neck|throat|knee|shoulder|gut|belly)\s+(?:hurts?|aches?|pains?)\b", lower):
+    if re.search(r"\bmy\s+(?:stomach|abdomen|head|back|chest|neck|throat|knee|shoulder|gut|belly|leg|arm)\s+(?:hurts?|aches?|pains?)\b", lower):
         return True
+
+    return False
+
+
+def is_out_of_scope(user_text: str) -> bool:
+    """Detect whether user input is clearly outside the scope of mental wellness, health, and medical guidance."""
+    lower = user_text.lower().strip()
+    if not lower:
+        return False
+
+    # 1. If physical health or disease query, it is strictly IN SCOPE
+    if is_physical_health_query(user_text):
+        return False
+
+    # 2. Math queries and arithmetic are strictly OUT_OF_SCOPE
+    if is_math_query(user_text):
+        return True
+
+    # 3. Explicit out-of-scope domain patterns (checked before general wellness words to prevent "help" collisions)
+    out_of_scope_patterns = [
+        # Coding & Software Development
+        r"\b(?:python|javascript|typescript|c\+\+|java|html|css|sql|react|angular|vue|docker|kubernetes|git\s+push|api\s+endpoint|algorithm|debug\s+code|write\s+a\s+script|regex|function\s*\(|class\s+\w+:|import\s+\w+|write\s+code|write\s+a\s+program|program\s+in|binary\s+search)\b",
+        # Cryptocurrency, finance, trading, stock market
+        r"\b(?:crypto|bitcoin|ethereum|dogecoin|stock\s+market|forex|day\s+trading|investing\s+in|mutual\s+fund|share\s+price|cryptocurrency|buy\s+stocks|stock\s+price)\b",
+        # Automotive, mechanical, electrical
+        r"\b(?:car\s+engine|transmission|spark\s+plug|oil\s+change|tire\s+pressure|brake\s+pads|fix\s+my\s+car|cylinder\s+head|fix\s+car)\b",
+        # Advanced math calculation / complex algebra / calculus
+        r"\b(?:solve\s+equation|integral\s+of|derivative\s+of|matrix\s+multiplication|eigenvalues|quadratic\s+formula|calculus|can\s+you\s+do\s+math)\b",
+        # Video game cheats, betting, sports match scores
+        r"\b(?:cheat\s+codes|gta\s+5\s+cheats|fifa\s+coins|fortnite\s+vbucks|cricket\s+score|nba\s+score|premier\s+league\s+table|betting\s+odds|who\s+won\s+the\s+(?:match|game|cricket|football))\b",
+        # Legal litigation
+        r"\b(?:legal\s+contract|sue\s+my|lawsuit|attorney\s+fees|court\s+hearing)\b",
+        # General non-medical trivia / geopolitics
+        r"\b(?:capital\s+of|election\s+results|weather\s+in|who\s+is\s+the\s+president|president\s+of\s+the)\b",
+    ]
+    for pat in out_of_scope_patterns:
+        if re.search(pat, lower):
+            return True
+
+    # 4. Standard wellness, mental health, emotional words, conversational check-ins, or tools are IN scope
+    wellness_keywords = [
+        "stress", "anxious", "anxiety", "feel", "feeling", "sad", "happy", "overwhelm",
+        "study", "exam", "college", "school", "breath", "breathing", "ground", "grounding",
+        "cope", "coping", "journal", "goal", "remember", "mindly", "hello", "hi", "hey",
+        "who are you", "what is your name", "what's your name", "how are you", "help",
+        "thank", "tired", "sleep", "insomnia", "headache", "pain", "hurt", "ache",
+        "medicine", "gale", "calm", "relax", "habit", "routine", "burnout", "lonely",
+        "scared", "fear", "panic", "worry", "worried", "crying", "depressed", "mental",
+        "health", "emotion", "thoughts", "unpack", "listen", "friend", "advice", "favorite"
+    ]
+    if any(k in lower for k in wellness_keywords):
+        return False
 
     return False
 
@@ -173,9 +250,13 @@ def classify_intent_heuristic(user_text: str) -> str:
     if safety["safety_status"] == "EDUCATIONAL_OR_THIRD_PERSON":
         return "CRISIS_RELATED"
 
-    # PRIORITY 3: General Health Information & Physical Symptoms
+    # PRIORITY 3: General Health Information, Physical Symptoms & Disease Inquiries
     if is_physical_health_query(user_text):
         return "HEALTH_INFORMATION"
+
+    # OUT-OF-SCOPE / MATH DOMAIN BOUNDARY CHECK (Must intercept non-medical queries before tools)
+    if is_math_query(user_text) or is_out_of_scope(user_text):
+        return "OUT_OF_SCOPE"
 
     # PRIORITY 5: Journaling requests
     if any(k in lower for k in [
@@ -184,22 +265,26 @@ def classify_intent_heuristic(user_text: str) -> str:
     ]):
         return "JOURNAL_REQUEST"
 
-    # PRIORITY 6: Goal requests
-    if lower.startswith("/goal") or "/goal" in lower or (
-        ("goal" in lower or "goals" in lower) and any(
-            act in lower for act in [
-                "set", "create", "make", "add", "show", "view", "list", "mark",
-                "complete", "finish", "my goal", "my goals", "study goal", "help me"
-            ]
-        )
-    ):
-        return "GOAL_REQUEST"
+    # PRIORITY 6: Goal requests (NEVER for medical queries or disease treatments)
+    if not is_physical_health_query(user_text):
+        if lower.startswith("/goal") or (
+            ("goal" in lower or "goals" in lower) and any(
+                act in lower for act in [
+                    "set", "create", "make", "add", "show", "view", "list", "mark",
+                    "complete", "finish", "my goal", "my goals", "study goal", "help me"
+                ]
+            ) and not any(w in lower for w in [
+                "disease", "treatment", "medicine", "doctor", "health", "cure", "pain",
+                "symptom", "causes", "hypertension", "diabetes", "migraine", "asthma"
+            ])
+        ):
+            return "GOAL_REQUEST"
 
     # PRIORITY 6: Planning requests
     if any(k in lower for k in [
         "study plan", "study schedule", "plan my week", "plan my study", "plan my exam",
         "routine", "time management", "organize my day", "exam preparation plan",
-        "make a plan", "plan for my exam", "plan for studying", "help me plan"
+        "make a plan for my exam", "plan for studying", "help me plan my study schedule"
     ]):
         return "PLANNING_REQUEST"
 
@@ -237,10 +322,6 @@ def classify_intent_heuristic(user_text: str) -> str:
     if any(k in lower for k in ["remember that", "what name should you call me", "what should you call me", "what is my preferred name", "view memory"]):
         return "MEMORY_REQUEST"
 
-    # Arithmetic expressions (2+2, etc.) are handled as direct conversation
-    if evaluate_math_expression(user_text) is not None:
-        return "GENERAL_CONVERSATION"
-
     # PRIORITY 9: General Conversation (Greetings, Identity, Casual)
     if any(k in lower for k in [
         "what is your name", "what's your name", "who are you",
@@ -252,62 +333,7 @@ def classify_intent_heuristic(user_text: str) -> str:
     ]):
         return "GENERAL_CONVERSATION"
 
-    # Out of scope query check
-    if is_out_of_scope(user_text):
-        return "OUT_OF_SCOPE"
-
     return "GENERAL_CONVERSATION"
-
-
-def is_out_of_scope(user_text: str) -> bool:
-    """Detect whether user input is clearly outside the scope of mental wellness, study support, and medical guidance."""
-    lower = user_text.lower().strip()
-    if not lower:
-        return False
-
-    # If physical symptoms or medical query, it is IN scope
-    if is_physical_health_query(user_text):
-        return False
-
-    # Simple arithmetic is handled directly, not rejected
-    if evaluate_math_expression(user_text) is not None:
-        return False
-
-    # Standard wellness, mental health, emotional words, conversational check-ins, or tools are IN scope
-    wellness_keywords = [
-        "stress", "anxious", "anxiety", "feel", "feeling", "sad", "happy", "overwhelm",
-        "study", "exam", "college", "school", "breath", "breathing", "ground", "grounding",
-        "cope", "coping", "journal", "goal", "remember", "mindly", "hello", "hi", "hey",
-        "who are you", "what is your name", "what's your name", "how are you", "help",
-        "thank", "tired", "sleep", "insomnia", "headache", "pain", "hurt", "ache",
-        "medicine", "gale", "calm", "relax", "habit", "routine", "burnout", "lonely",
-        "scared", "fear", "panic", "worry", "worried", "crying", "depressed", "mental",
-        "health", "emotion", "thoughts", "unpack", "listen", "friend", "advice", "favorite"
-    ]
-    if any(k in lower for k in wellness_keywords):
-        return False
-
-    # Out of scope domain patterns
-    out_of_scope_patterns = [
-        # Coding & Software Development
-        r"\b(?:python|javascript|typescript|c\+\+|java|html|css|sql|react|angular|vue|docker|kubernetes|git\s+push|api\s+endpoint|algorithm|debug\s+code|write\s+a\s+script|regex|function\s*\(|class\s+\w+:|import\s+\w+|write\s+code)\b",
-        # Cryptocurrency, finance, trading, stock market
-        r"\b(?:crypto|bitcoin|ethereum|dogecoin|stock\s+market|forex|day\s+trading|investing\s+in|mutual\s+fund|share\s+price|cryptocurrency|buy\s+stocks)\b",
-        # Automotive, mechanical, electrical
-        r"\b(?:car\s+engine|transmission|spark\s+plug|oil\s+change|tire\s+pressure|brake\s+pads|fix\s+my\s+car|cylinder\s+head)\b",
-        # Advanced math calculation / complex algebra / calculus
-        r"\b(?:solve\s+equation|integral\s+of|derivative\s+of|matrix\s+multiplication|eigenvalues|quadratic\s+formula|calculus)\b",
-        # Video game cheats, betting, sports match scores
-        r"\b(?:cheat\s+codes|gta\s+5\s+cheats|fifa\s+coins|fortnite\s+vbucks|cricket\s+score|nba\s+score|premier\s+league\s+table|betting\s+odds)\b",
-        # Legal litigation
-        r"\b(?:legal\s+contract|sue\s+my|lawsuit|attorney\s+fees|court\s+hearing)\b",
-        # General non-medical trivia / geopolitics
-        r"\b(?:capital of|election results|weather in|who is the president|stock price)\b",
-    ]
-    for pat in out_of_scope_patterns:
-        if re.search(pat, lower):
-            return True
-    return False
 
 
 INTENT_PROMPT = """You are an intent classification component for Mindly, a mental wellness support assistant.
@@ -360,13 +386,14 @@ def classify_intent(user_text: str, llm=None) -> str:
     if is_physical_health_query(user_text):
         return "HEALTH_INFORMATION"
 
-    # Arithmetic expressions are routed directly
+    # Arithmetic expressions (2+3, 2+2, etc.) are strictly OUT_OF_SCOPE
     if evaluate_math_expression(user_text) is not None:
-        return "GENERAL_CONVERSATION"
+        return "OUT_OF_SCOPE"
 
     # Check for clearly out-of-scope / unnecessary queries before passing to LLM
     if is_out_of_scope(user_text):
         return "OUT_OF_SCOPE"
+
 
     # Stage 1 (Cont): Explicit Tool Triggers & Conversational Filters
     heuristic_intent = classify_intent_heuristic(user_text)

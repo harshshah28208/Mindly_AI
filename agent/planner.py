@@ -18,8 +18,9 @@ UNDERSTAND -> ANALYZE -> DECIDE -> PLAN -> SELECT TOOL -> EXECUTE -> EVALUATE
 
 import re
 from typing import Any, Dict, Optional
-from agent.intent import is_physical_health_query
+from agent.intent import is_physical_health_query, is_out_of_scope
 from agent.safety import assess_safety, is_educational_or_third_person, screen_urgent_medical
+
 
 
 def plan_action(
@@ -160,9 +161,22 @@ def plan_action(
         }
 
     # --------------------------------------------------------------------------
-    # PRIORITY 5: JOURNAL REQUEST
+    # DOMAIN BOUNDARY GUARDRAIL: OUT-OF-SCOPE / NON-MEDICAL / MATH
     # --------------------------------------------------------------------------
-    if detected_intent == "JOURNAL_REQUEST" or any(k in lower for k in ["/journal", "journal this", "save to journal", "journal entry", "make a journal entry", "write in my journal", "write this in my journal", "show my journal", "show my recent journal entries", "open my journal"]):
+    if detected_intent == "OUT_OF_SCOPE" or is_out_of_scope(clean_input):
+        return {
+            "selected_action": "DIRECT_RESPONSE",
+            "tool_name": "scope_boundary_protocol",
+            "reasoning_summary": "Domain Scope Boundary: query is outside clinical medical & wellness scope; enforcing non-medical boundary.",
+        }
+
+    # --------------------------------------------------------------------------
+    # PRIORITY 5: JOURNAL REQUEST (Only if not a medical/disease query)
+    # --------------------------------------------------------------------------
+    if not is_physical_health_query(clean_input) and (
+        detected_intent == "JOURNAL_REQUEST"
+        or any(k in lower for k in ["/journal", "journal this", "save to journal", "journal entry", "make a journal entry", "write in my journal", "write this in my journal", "show my journal", "show my recent journal entries", "open my journal"])
+    ):
         return {
             "selected_action": "USE_JOURNAL_TOOL",
             "tool_name": "journal_recorder",
@@ -170,13 +184,16 @@ def plan_action(
         }
 
     # --------------------------------------------------------------------------
-    # PRIORITY 6: GOAL / PLANNING REQUEST
+    # PRIORITY 6: GOAL / PLANNING REQUEST (Only if not a medical/disease query)
     # --------------------------------------------------------------------------
-    if detected_intent == "GOAL_REQUEST" or any(k in lower for k in [
-        "/goal", "create a goal", "create goal", "set a goal", "add a goal",
-        "view goals", "list goals", "my goals", "complete goal", "mark goal",
-        "mark my study goal", "mark my goal complete", "goal as completed", "show my goals", "help me set a study goal"
-    ]):
+    if not is_physical_health_query(clean_input) and (
+        detected_intent == "GOAL_REQUEST"
+        or any(k in lower for k in [
+            "/goal", "create a goal", "create goal", "set a goal", "add a goal",
+            "view goals", "list goals", "my goals", "complete goal", "mark goal",
+            "mark my study goal", "mark my goal complete", "goal as completed", "show my goals", "help me set a study goal"
+        ])
+    ):
         return {
             "selected_action": "USE_GOAL_TOOL",
             "tool_name": "goal_tracker",

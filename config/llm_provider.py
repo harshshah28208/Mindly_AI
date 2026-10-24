@@ -60,17 +60,20 @@ class DynamicLocalResponseEngine:
         user_facts = extracted["facts"]
         name_prefix = f"{user_name}, " if user_name else ""
         name_suffix = f", {user_name}" if user_name else ""
-        # Arithmetic evaluation (2+2, etc.)
-
+        # Arithmetic / Math queries: enforce medical domain scope boundary
         try:
-            from agent.intent import evaluate_math_expression
-            math_res = evaluate_math_expression(last_human_msg)
-            if math_res:
+            from agent.intent import is_math_query
+            if is_math_query(last_human_msg):
                 return (
-                    f"**{math_res['expr']} = {math_res['ans']}**\n\n"
-                    "*(Note: Mindly is an Agentic AI Medical & Wellness companion. "
-                    "You can ask clinical health questions from the Gale Encyclopedia of Medicine, "
-                    "explore medical knowledge, or inspect our multi-agent architecture!)*"
+                    "🌿 **Medical Domain Scope Boundary Notice**:\n\n"
+                    "Mindly is dedicated exclusively as an **Agentic AI Medical & Wellness Copilot** "
+                    "(grounded in the *Gale Encyclopedia of Medicine* and multi-agent clinical protocols).\n\n"
+                    "This inquiry falls outside my specialized clinical health and wellness scope. "
+                    "I do not perform general calculations, programming tasks, or non-medical queries.\n\n"
+                    "**In-Scope Inquiries You Can Explore:**\n"
+                    "• Clinical diseases & conditions (e.g. *Hypertension*, *Migraine*, *Diabetes*, *Asthma*, *Arthritis*)\n"
+                    "• Physical symptoms & etiology (e.g. *Causes of acute stomach pain and the brain-gut axis*)\n"
+                    "• Stress regulation, breathing exercises, and evidence-based clinical wellness management."
                 )
         except Exception:
             pass

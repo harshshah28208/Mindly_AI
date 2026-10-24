@@ -13,11 +13,15 @@ from config.llm_provider import DynamicLocalResponseEngine
 
 
 SCOPE_NOTICE_MESSAGE = (
-    "🌿 **Mindly Agentic Boundary Guidance**:\n\n"
-    "Mindly is designed specifically as an **Agentic AI Medical & Wellness Companion** "
-    "(powered by LangGraph and the *Gale Encyclopedia of Medicine*).\n\n"
-    "Your inquiry falls outside my specialized clinical, medical education, and wellness scope. "
-    "If you have inquiries regarding medical symptoms, physical health, clinical conditions, or stress management, I'm right here to help!"
+    "🌿 **Medical Domain Scope Boundary Notice**:\n\n"
+    "Mindly is dedicated exclusively as an **Agentic AI Medical & Wellness Copilot** "
+    "(grounded in the *Gale Encyclopedia of Medicine* and multi-agent clinical protocols).\n\n"
+    "This inquiry falls outside my specialized clinical health and wellness scope. "
+    "I do not perform general calculations, programming tasks, or non-medical queries.\n\n"
+    "**In-Scope Inquiries You Can Explore:**\n"
+    "• Clinical diseases & conditions (e.g. *Hypertension*, *Migraine*, *Diabetes*, *Asthma*, *Arthritis*)\n"
+    "• Physical symptoms & etiology (e.g. *Causes of acute stomach pain and the brain-gut axis*)\n"
+    "• Stress regulation, breathing exercises, and evidence-based clinical wellness management."
 )
 
 
@@ -27,19 +31,10 @@ def generate_direct_response(
     llm=None,
     is_scope_notice: bool = False,
 ) -> str:
-    """Generate a dynamic conversational reply, math computation, or medical/wellness scope guidance."""
-    if is_scope_notice:
+    """Generate a dynamic conversational reply or medical/wellness scope guidance."""
+    # Enforce medical domain scope boundary on explicit notice or math
+    if is_scope_notice or evaluate_math_expression(user_text) is not None:
         return SCOPE_NOTICE_MESSAGE
-
-    # Immediate precise math computation
-    math_eval = evaluate_math_expression(user_text)
-    if math_eval:
-        return (
-            f"**{math_eval['expr']} = {math_eval['ans']}**\n\n"
-            "*(Note: Mindly is an Agentic AI Medical & Wellness companion. "
-            "You can ask clinical health questions from the Gale Encyclopedia of Medicine, "
-            "explore medical knowledge, or inspect our multi-agent architecture!)*"
-        )
 
 
     # Check conversation history for previously shared user details (like name)
