@@ -229,6 +229,20 @@ def plan_action(
         }
 
     # --------------------------------------------------------------------------
+    # THERAPIST LOCATOR REQUEST (Inspired by SafeSpace AI)
+    # --------------------------------------------------------------------------
+    if detected_intent == "THERAPIST_REQUEST" or any(k in lower for k in [
+        "find therapist", "find a therapist", "therapists near", "therapist near", "psychologist near",
+        "psychiatrist near", "counselor near", "find counseling", "locate therapist", "recommend a therapist",
+        "find a doctor near", "mental health clinic near"
+    ]):
+        return {
+            "selected_action": "USE_THERAPIST_TOOL",
+            "tool_name": "therapist_locator",
+            "reasoning_summary": "Identified request for professional human counseling or local clinic; routed to therapist locator.",
+        }
+
+    # --------------------------------------------------------------------------
     # PRIORITY 7: EXPLICIT GROUNDING REQUEST
     # --------------------------------------------------------------------------
     if detected_intent == "GROUNDING_REQUEST" or any(k in lower for k in [

@@ -82,6 +82,7 @@ INTENT_CATEGORIES = [
     "PLANNING_REQUEST",
     "INFORMATION_REQUEST",  # Maintained as compatible alias
     "MEMORY_REQUEST",
+    "THERAPIST_REQUEST",
     "OUT_OF_SCOPE",
 ]
 
@@ -288,6 +289,17 @@ def classify_intent_heuristic(user_text: str) -> str:
     # OUT-OF-SCOPE / MATH DOMAIN BOUNDARY CHECK (Must intercept non-medical queries before tools)
     if is_math_query(user_text) or is_out_of_scope(user_text):
         return "OUT_OF_SCOPE"
+
+    # THERAPIST LOCATOR REQUEST (Inspired by SafeSpace AI)
+    therapist_triggers = [
+        "find therapist", "find a therapist", "therapists near", "therapist near", "psychologist near",
+        "psychiatrist near", "counselor near", "find counseling", "locate therapist", "recommend a therapist",
+        "find a doctor near", "mental health clinic near", "therapists in", "psychologists in", "counselors in",
+    ]
+    if any(k in lower for k in therapist_triggers) or (
+        "near me" in lower and any(w in lower for w in ["therapist", "psychologist", "counselor", "clinic", "psychiatrist"])
+    ):
+        return "THERAPIST_REQUEST"
 
     # PRIORITY 5: Journaling requests
     if any(k in lower for k in [

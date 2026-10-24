@@ -231,22 +231,26 @@ tab_chat, tab_graph, tab_rag, tab_safety, tab_diagnostics = st.tabs([
 # ==============================================================================
 with tab_chat:
     st.markdown("##### 💡 Quick Test Prompts (Agentic Capabilities)")
-    col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+    col_p1, col_p2, col_p3, col_p4, col_p5 = st.columns(5)
 
     with col_p1:
-        if st.button("🩺 Clinical RAG Test", use_container_width=True):
-            st.session_state.pending_prompt = "What are the common causes and clinical management of hypertension?"
+        if st.button("🩺 Disease & Cure Plan", use_container_width=True):
+            st.session_state.pending_prompt = "I am having acidity what to do? Give me reason and proper cure plan."
             st.rerun()
     with col_p2:
         if st.button("🔬 Brain-Gut Axis", use_container_width=True):
             st.session_state.pending_prompt = "Why does acute stress cause stomach pain and digestive cramping?"
             st.rerun()
     with col_p3:
+        if st.button("📍 Therapist Locator", use_container_width=True):
+            st.session_state.pending_prompt = "Can you recommend licensed clinical therapists near Mumbai?"
+            st.rerun()
+    with col_p4:
         if st.button("🛡️ Domain Scope Test", use_container_width=True):
             st.session_state.pending_prompt = "Can you calculate 2+3 or write a python script?"
             st.rerun()
-    with col_p4:
-        if st.button("🚨 Acute Red-Flag Screening", use_container_width=True):
+    with col_p5:
+        if st.button("🚨 Acute Red-Flag", use_container_width=True):
             st.session_state.pending_prompt = "I have sudden severe crushing chest pain, difficulty breathing, and fainting."
             st.rerun()
 

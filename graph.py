@@ -116,6 +116,16 @@ def create_crisis_node():
 
         display_status = escalation_result.get("display_card", "Supervisor escalation has been triggered in demo mode.")
 
+        # Automated telephony / emergency contact dispatch (SafeSpace inspired)
+        try:
+            from tools.emergency_dispatch import dispatch_emergency_notification
+            dispatch_emergency_notification(
+                risk_level="HIGH",
+                user_input_snippet=user_text or "Crisis detected",
+            )
+        except Exception:
+            pass
+
         return {
             "detected_intent": "CRISIS_RELATED",
             "detected_emotion": "distressed",
@@ -301,6 +311,18 @@ def create_memory_node():
     return memory_node
 
 
+def create_therapist_node():
+    """Create therapist & clinic locator node (SafeSpace inspired)."""
+    def therapist_node(state: AgentState) -> Dict[str, Any]:
+        try:
+            from tools.therapist_locator import find_nearby_therapists
+            res = find_nearby_therapists(state.get("user_input", ""))
+            return {"tool_result": res}
+        except Exception as exc:
+            return {"tool_result": f"Error: tool failed - {str(exc)}"}
+    return therapist_node
+
+
 def create_direct_response_node(llm=None, use_simulation: bool = False):
     """Create direct conversational response node."""
     _llm = None if use_simulation else (llm or get_llm())
@@ -405,6 +427,8 @@ def route_action(state: AgentState) -> str:
         return "goal_node"
     elif action == "USE_MEMORY_TOOL":
         return "memory_node"
+    elif action == "USE_THERAPIST_TOOL":
+        return "therapist_node"
     elif action == "CRISIS_RESPONSE":
         return "crisis_node"
     return "direct_response_node"
@@ -446,6 +470,7 @@ def build_mindly_graph(
     builder.add_node("journal_node", create_journal_node())
     builder.add_node("goal_node", create_goal_node())
     builder.add_node("memory_node", create_memory_node())
+    builder.add_node("therapist_node", create_therapist_node())
     builder.add_node("direct_response_node", create_direct_response_node(llm=llm, use_simulation=use_simulation))
     builder.add_node("evaluator_node", create_evaluator_node())
     builder.add_node("final_response_node", create_final_response_node())
@@ -479,6 +504,7 @@ def build_mindly_graph(
             "journal_node": "journal_node",
             "goal_node": "goal_node",
             "memory_node": "memory_node",
+            "therapist_node": "therapist_node",
             "direct_response_node": "direct_response_node",
             "crisis_node": "crisis_node",
         },
@@ -492,6 +518,7 @@ def build_mindly_graph(
     builder.add_edge("journal_node", "evaluator_node")
     builder.add_edge("goal_node", "evaluator_node")
     builder.add_edge("memory_node", "evaluator_node")
+    builder.add_edge("therapist_node", "evaluator_node")
     builder.add_edge("direct_response_node", "evaluator_node")
 
     # Section 6: High-risk crisis node also passes through safety evaluation
