@@ -1,4 +1,4 @@
-"""Centralized configuration management for Mindly (Lab 3).
+"""Centralized configuration management for Mindly.
 
 Reads environment variables from .env using python-dotenv.
 Avoids hardcoding models, URLs, or secrets throughout the application.
@@ -20,10 +20,16 @@ else:
 
 
 class Settings:
-    """Application settings class for Mindly Lab 3."""
+    """Application settings class for Mindly."""
 
     def __init__(self) -> None:
-        # LLM & Models
+        # LLM & Multi-Provider Settings
+        self.llm_provider: str = os.getenv("LLM_PROVIDER", "auto").strip().lower()
+        self.openai_api_key: str = os.getenv("OPENAI_API_KEY", "").strip()
+        self.openai_base_url: str = os.getenv("OPENAI_BASE_URL", "").strip()
+        self.openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
+        self.groq_api_key: str = os.getenv("GROQ_API_KEY", "").strip()
+
         self.ollama_model: str = os.getenv("OLLAMA_MODEL", "llama3.2:1b").strip()
         self.coping_model: str = os.getenv("COPING_MODEL", self.ollama_model).strip()
         self.embedding_model: str = os.getenv("EMBEDDING_MODEL", self.ollama_model).strip()

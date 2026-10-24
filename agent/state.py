@@ -1,4 +1,4 @@
-"""State definition for Mindly Lab 3 Multimodal LangGraph workflow.
+"""State definition for Mindly Multimodal LangGraph workflow.
 
 Captures the complete agentic lifecycle:
 UNDERSTAND -> ANALYZE -> DECIDE -> PLAN -> SELECT TOOL -> EXECUTE -> EVALUATE -> REPLAN -> RESPOND

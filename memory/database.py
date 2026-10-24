@@ -1,4 +1,4 @@
-"""SQLite Persistent Database Manager for Mindly Lab 3.
+"""SQLite Persistent Database Manager for Mindly.
 
 Provides local, privacy-centric storage for:
 - Long-term non-sensitive user preferences & memory (with user consent toggle)

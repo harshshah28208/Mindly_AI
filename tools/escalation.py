@@ -1,4 +1,4 @@
-"""Human Supervisor Escalation Service for Mindly Lab 3.
+"""Human Supervisor Escalation Service for Mindly.
 
 Provides non-emergency project owner/supervisor alerting when HIGH risk is detected.
 Operates in 'demo' mode by default to simulate alerts without paid telephony costs.

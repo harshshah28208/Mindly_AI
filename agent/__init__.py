@@ -1,4 +1,4 @@
-"""Agent package for Mindly Lab 2."""
+"""Agent package for Mindly."""
 
 from agent.emotion import classify_emotion
 from agent.evaluator import evaluate_execution

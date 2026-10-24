@@ -1,4 +1,4 @@
-"""Gale Encyclopedia of Medicine RAG tool for Mindly Lab 3.
+"""Gale Encyclopedia of Medicine RAG tool for Mindly.
 
 Provides grounded answers strictly referencing retrieved knowledge chunks
 from the Gale Encyclopedia of Medicine. Enforces clinical boundaries and

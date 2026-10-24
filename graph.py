@@ -1,4 +1,4 @@
-"""LangGraph StateGraph implementation for Mindly Lab 3.
+"""LangGraph StateGraph implementation for Mindly.
 
 Architectural Flow (Agentic Lifecycle):
 UNDERSTAND -> ANALYZE -> DECIDE -> PLAN -> SELECT TOOL -> EXECUTE -> EVALUATE -> RESPOND
@@ -10,6 +10,7 @@ Features:
 - Selective Gale Encyclopedia of Medicine RAG pipeline
 - Persistent SQLite Memory Vault, Wellness Journal, and Goal & Habit Planner
 - Dynamic Tool Execution (Grounding, Coping, RAG, Vision, Journal, Goals, Memory, Direct Response)
+- Medical and Wellness Domain Scope Boundary Protection
 - Evaluator Node with bounded retry/replanning loop (MAX_RETRIES = 2)
 - StateGraph with MemorySaver checkpointer for thread-level multi-turn memory
 """
@@ -25,7 +26,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
-from langchain_ollama import ChatOllama
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
@@ -42,6 +42,7 @@ from agent.safety import (
 )
 from agent.state import AgentState
 from config.settings import settings
+from config.llm_provider import get_universal_llm
 from tools.coping import generate_coping_strategies
 from tools.direct_response import generate_direct_response
 from tools.escalation import escalation_service
@@ -57,9 +58,9 @@ def get_llm(
     model: Optional[str] = None,
     base_url: Optional[str] = None,
     temperature: Optional[float] = None,
-) -> ChatOllama:
-    """Instantiate and return configured ChatOllama client."""
-    return ChatOllama(
+):
+    """Instantiate and return configured universal Chat LLM client."""
+    return get_universal_llm(
         model=model or settings.ollama_model,
         base_url=base_url or settings.ollama_base_url,
         temperature=temperature if temperature is not None else settings.ollama_temperature,
@@ -129,7 +130,7 @@ def create_crisis_node():
     return crisis_node
 
 
-# Alias for multimodal and lab 3 compatibility
+# Alias for multimodal compatibility
 create_crisis_escalation_node = create_crisis_node
 
 
@@ -311,6 +312,11 @@ def create_direct_response_node(llm=None, use_simulation: bool = False):
             output = generate_third_person_support_response(user_text)
             return {"tool_result": output}
 
+        # Out-of-scope question: Guide user back to medical & wellness purpose
+        if state.get("tool_name") == "scope_boundary_protocol" or state.get("detected_intent") == "OUT_OF_SCOPE":
+            output = generate_direct_response(user_text, is_scope_notice=True)
+            return {"tool_result": output}
+
         try:
             output = generate_direct_response(
                 user_text=user_text,
@@ -424,7 +430,7 @@ def build_mindly_graph(
     coping_llm=None,
     use_simulation: bool = False,
 ):
-    """Build and compile the complete Mindly Lab 3 LangGraph StateGraph."""
+    """Build and compile the complete Mindly LangGraph StateGraph."""
     builder = StateGraph(AgentState)
 
     # 1. Add all nodes

@@ -1,4 +1,4 @@
-"""Goal management and planning tool for Mindly Lab 3."""
+"""Goal management and planning tool for Mindly."""
 
 import re
 from typing import Optional

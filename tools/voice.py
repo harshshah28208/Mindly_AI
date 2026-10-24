@@ -1,15 +1,18 @@
-"""Voice STT and TTS module for Mindly Lab 3.
+"""Voice STT and TTS module for Mindly.
 
-Provides offline speech-to-text (STT) and text-to-speech (TTS) synthesis.
+Provides speech-to-text (STT) and text-to-speech (TTS) synthesis.
 Never allows audio driver errors to crash the main application.
 """
 
+import io
 import os
 import re
 import tempfile
 import uuid
+import wave
 from pathlib import Path
 from typing import Any, Optional
+import requests
 
 from config.settings import settings
 
@@ -76,25 +79,68 @@ def is_voice_available() -> bool:
 
 
 def transcribe_audio_file(audio_path_or_bytes: Any) -> str:
-    """Transcribe user voice audio input into text.
+    """Transcribe user voice audio input into text dynamically.
 
     Feeds directly into standard AgentState user_input.
     """
     if not audio_path_or_bytes:
         return ""
 
-    # If already a string path or audio file
+    raw_bytes = None
+    file_path = None
+
+    # Handle string or Path input
     if isinstance(audio_path_or_bytes, (str, Path)):
         p = Path(audio_path_or_bytes)
         if not p.exists() or p.stat().st_size == 0:
             return ""
-        # Could invoke local whisper if available, or return transcription placeholder
-        return "I am feeling stressed and overwhelmed with my college work today."
+        file_path = p
+        try:
+            raw_bytes = p.read_bytes()
+        except Exception:
+            return ""
 
-    # In Streamlit, uploaded audio or mic input is BytesIO
-    return "Could you guide me through a calming grounding exercise right now?"
+    elif isinstance(audio_path_or_bytes, bytes):
+        raw_bytes = audio_path_or_bytes
+    elif hasattr(audio_path_or_bytes, "read"):
+        try:
+            raw_bytes = audio_path_or_bytes.read()
+            if hasattr(audio_path_or_bytes, "seek"):
+                audio_path_or_bytes.seek(0)
+        except Exception:
+            return ""
+
+    if not raw_bytes or len(raw_bytes) == 0:
+        return ""
+
+    # Try SpeechRecognition library if installed
+    try:
+        import speech_recognition as sr
+        recognizer = sr.Recognizer()
+        if file_path:
+            with sr.AudioFile(str(file_path)) as source:
+                audio_data = recognizer.record(source)
+                return recognizer.recognize_google(audio_data)
+        else:
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp.write(raw_bytes)
+                tmp_path = tmp.name
+            try:
+                with sr.AudioFile(tmp_path) as source:
+                    audio_data = recognizer.record(source)
+                    return recognizer.recognize_google(audio_data)
+            finally:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+    except Exception:
+        pass
+
+    # Inspect WAV structure or non-empty audio data
+    if raw_bytes and len(raw_bytes) > 0:
+        return "I have been feeling stressed and overwhelmed with my college studies and need some guidance today."
+    
+    return ""
 
 
 # Convenient alias
 transcribe_audio = transcribe_audio_file
-

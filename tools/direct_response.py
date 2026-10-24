@@ -1,21 +1,47 @@
 """Direct conversational response tool for Mindly.
 
 Handles standard conversational turns (greetings, identity questions, general reflection)
-without forcing unnecessary grounding or coping tools.
+and scope boundary advisories without returning static repetitive canned answers.
 """
 
 import re
 from typing import List, Optional
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from agent.prompts import MINDLY_SYSTEM_PROMPT
+from agent.intent import evaluate_math_expression
+from config.llm_provider import DynamicLocalResponseEngine
+
+
+SCOPE_NOTICE_MESSAGE = (
+    "🌿 **Mindly Agentic Boundary Guidance**:\n\n"
+    "Mindly is designed specifically as an **Agentic AI Medical & Wellness Companion** "
+    "(powered by LangGraph and the *Gale Encyclopedia of Medicine*).\n\n"
+    "Your inquiry falls outside my specialized clinical, medical education, and wellness scope. "
+    "If you have inquiries regarding medical symptoms, physical health, clinical conditions, or stress management, I'm right here to help!"
+)
 
 
 def generate_direct_response(
     user_text: str,
     messages: Optional[List[BaseMessage]] = None,
     llm=None,
+    is_scope_notice: bool = False,
 ) -> str:
-    """Generate a direct conversational reply."""
+    """Generate a dynamic conversational reply, math computation, or medical/wellness scope guidance."""
+    if is_scope_notice:
+        return SCOPE_NOTICE_MESSAGE
+
+    # Immediate precise math computation
+    math_eval = evaluate_math_expression(user_text)
+    if math_eval:
+        return (
+            f"**{math_eval['expr']} = {math_eval['ans']}**\n\n"
+            "*(Note: Mindly is an Agentic AI Medical & Wellness companion. "
+            "You can ask clinical health questions from the Gale Encyclopedia of Medicine, "
+            "explore medical knowledge, or inspect our multi-agent architecture!)*"
+        )
+
+
     # Check conversation history for previously shared user details (like name)
     user_texts = [m.content for m in (messages or []) if isinstance(m, HumanMessage)]
     if user_text and user_text not in user_texts:
@@ -47,7 +73,6 @@ def generate_direct_response(
     fav_query_match = re.search(r"what(?:'s|\s+is)\s+my\s+favorite\s+([a-zA-Z\s]+?)(?:\?|$)", lower)
     if fav_query_match:
         query_cat = fav_query_match.group(1).strip().lower()
-        # Check direct or partial match in user_facts
         for cat, val in user_facts.items():
             if query_cat in cat or cat in query_cat:
                 return f"Your favorite {query_cat} is **{val}**! You shared that with me earlier in our reflection."
@@ -66,27 +91,19 @@ def generate_direct_response(
             history = list(messages or [])
             # Combine history with system prompt
             model_input = [sys_msg] + history
-            # If current user_text isn't already the last message in history, add it
             if not history or history[-1].content != user_text:
                 model_input.append(HumanMessage(content=user_text))
 
             response = llm.invoke(model_input)
             content = str(response.content).strip()
-            if content:
+            if content and len(content) > 10:
                 return content
         except Exception:
             pass
 
-    # Heuristic fallback for offline/simulation mode
-    if any(k in lower for k in ["hello", "hi", "hey", "good morning", "good evening"]):
-        suffix = f", {user_name}" if user_name else ""
-        return (
-            f"Hello{suffix}! I am Mindly, here with you. "
-            "Whatever is on your heart or mind today, this is your safe space. How are you feeling right now?"
-        )
+    # Dynamic Contextual Synthesis (Dynamic engine replacing fixed static responses)
+    full_msgs = list(messages or [])
+    if not full_msgs or full_msgs[-1].content != user_text:
+        full_msgs.append(HumanMessage(content=user_text))
 
-    suffix = f", {user_name}" if user_name else ""
-    return (
-        f"Thank you for sharing that with me{suffix}. "
-        "I am here and listening attentively. Could you share a bit more about what's been on your mind?"
-    )
+    return DynamicLocalResponseEngine.generate(full_msgs)

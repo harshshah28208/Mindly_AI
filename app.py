@@ -1,15 +1,12 @@
-"""Mindly - Your Study & Wellness Companion.
+"""Mindly - Agentic AI Medical & Wellness System.
 
-A calm, approachable student-friendly companion powered by an agentic
-multimodal mental-wellness system.
-
-Architecture (Preserved):
-- LangGraph dynamic orchestrator
-- Gale Encyclopedia of Medicine local RAG pipeline
-- Voice (STT / TTS) & Vision multimodal processing
-- Persistent long-term memory, wellness journal, and goals
-- Non-emergency human supervisor escalation protocol
-- Real-time response quality evaluation & safety guarding
+An autonomous, multimodal multi-agent architecture built on LangGraph:
+- Autonomous Multi-Agent Routing & Execution Graph
+- Clinical RAG Pipeline over the Gale Encyclopedia of Medicine
+- Deterministic Safety Interceptor & Human-in-the-Loop Supervisor Escalations
+- Self-Reflective Evaluator with Bounded Replanning Loops (MAX_RETRIES = 2)
+- Multimodal Processing (Text, Voice STT/TTS, Medical Vision Perception)
+- Zero-Dependency Smart Dynamic Engine with Ollama & Cloud LLM Orchestration
 """
 
 import os
@@ -17,7 +14,7 @@ import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 # Ensure project root is always in sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -31,149 +28,45 @@ from graph import get_mindly_graph, send_message
 from memory.database import db
 from rag.retriever import retrieve_relevant_chunks
 from rag.vectorstore import vector_store
+from agent.safety import assess_safety, screen_urgent_medical
+from agent.intent import is_out_of_scope, evaluate_math_expression
 from tools.voice import synthesize_speech, transcribe_audio_file
 
 # ------------------------------------------------------------------------------
-# PAGE CONFIGURATION
+# STREAMLIT PAGE CONFIGURATION
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Mindly — Study & Wellness Companion",
+    page_title="Mindly — Agentic AI Medical & Wellness Copilot",
     page_icon="🌿",
-    layout="centered",
-    initial_sidebar_state="collapsed",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 # ------------------------------------------------------------------------------
-# STUDENT-FRIENDLY, MODERN, CALM STYLING (CSS)
+# MODERN AGENTIC AI DESIGN SYSTEM (CSS)
 # ------------------------------------------------------------------------------
 st.markdown(
-    """
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;1,400&display=swap');
+    """<style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
     html, body, [class*="css"] {
         font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-        color: #1e2d24;
     }
 
-    /* Calming Header */
-    .hero-container {
-        text-align: center;
-        padding: 1.8rem 1rem 1.2rem 1rem;
-        background: linear-gradient(180deg, #edf5f0 0%, #f7faf8 100%);
-        border: 1px solid #d8e8dc;
-        border-radius: 20px;
-        margin-bottom: 1.5rem;
+    code, pre {
+        font-family: 'JetBrains Mono', monospace !important;
     }
 
-    .hero-title {
-        font-family: 'Lora', Georgia, serif;
-        font-size: 2.3rem;
-        font-weight: 600;
-        color: #1b3d2b;
-        margin: 0 0 0.2rem 0;
-        letter-spacing: -0.01em;
-    }
-
-    .hero-subtitle {
-        font-size: 1.02rem;
-        color: #4a6856;
-        margin: 0 0 0.8rem 0;
-        font-weight: 500;
-    }
-
-    .greeting-line {
-        font-size: 1.15rem;
-        font-weight: 600;
-        color: #214330;
-        margin-top: 0.6rem;
-    }
-
-    .mood-prompt {
-        font-size: 0.88rem;
-        color: #5d7a69;
-        margin-bottom: 0.5rem;
-    }
-
-    /* Quick Action Pills */
     .stButton > button {
-        border-radius: 12px;
-        border: 1px solid #cde0d3;
-        background-color: #ffffff;
-        color: #234833;
+        border-radius: 10px;
         font-weight: 500;
         transition: all 0.15s ease-in-out;
     }
 
     .stButton > button:hover {
-        border-color: #3b7a54;
-        background-color: #edf5f0;
-        color: #183b27;
-        box-shadow: 0 2px 6px rgba(45, 90, 63, 0.08);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }
-
-    /* Subtle Cards */
-    .student-card {
-        background: #ffffff;
-        border: 1px solid #e0ebe3;
-        border-radius: 14px;
-        padding: 1rem 1.2rem;
-        margin-bottom: 0.8rem;
-        box-shadow: 0 2px 8px -2px rgba(35, 65, 45, 0.04);
-    }
-
-    .source-chip {
-        display: inline-block;
-        background: #eef6f1;
-        border: 1px solid #c2ded0;
-        color: #225239;
-        border-radius: 8px;
-        padding: 0.3rem 0.6rem;
-        font-size: 0.8rem;
-        font-weight: 500;
-        margin-top: 0.4rem;
-    }
-
-    .safety-banner {
-        background: #fff4f4;
-        border-left: 4px solid #d32f2f;
-        border-radius: 10px;
-        padding: 0.9rem 1.1rem;
-        margin-top: 0.6rem;
-        color: #b71c1c;
-        font-size: 0.9rem;
-        line-height: 1.5;
-    }
-
-    /* Friendly Details Panel */
-    .friendly-details {
-        background: #f8faf8;
-        border: 1px solid #dce8e0;
-        border-radius: 10px;
-        padding: 0.8rem 1rem;
-        font-size: 0.84rem;
-        color: #324e3e;
-        line-height: 1.6;
-    }
-
-    .detail-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 0.2rem 0;
-        border-bottom: 1px dashed #e4ede6;
-    }
-    .detail-row:last-child {
-        border-bottom: none;
-    }
-    .detail-label {
-        font-weight: 600;
-        color: #244633;
-    }
-    .detail-val {
-        color: #3f604d;
-    }
-    </style>
-    """,
+    </style>""",
     unsafe_allow_html=True,
 )
 
@@ -195,12 +88,12 @@ if "supervisor_alerts" not in st.session_state:
 if "uploaded_image" not in st.session_state:
     st.session_state.uploaded_image = None
 
-if "dev_mode" not in st.session_state:
-    st.session_state.dev_mode = False
+if "enable_tts" not in st.session_state:
+    st.session_state.enable_tts = False
 
 
 def reset_session():
-    """Start a fresh, peaceful reflection session."""
+    """Start a fresh session with new thread ID and refreshed graph."""
     st.session_state.thread_id = str(uuid.uuid4())
     st.session_state.messages = []
     st.session_state.pending_prompt = None
@@ -210,257 +103,194 @@ def reset_session():
 
 
 # ------------------------------------------------------------------------------
-# GREETING HELPER (Time-Aware)
-# ------------------------------------------------------------------------------
-def get_time_greeting() -> str:
-    hour = datetime.now().hour
-    if 5 <= hour < 12:
-        return "Good morning 👋"
-    elif 12 <= hour < 17:
-        return "Good afternoon 👋"
-    else:
-        return "Good evening 👋"
-
-
-# ------------------------------------------------------------------------------
-# SIDEBAR / QUICK COMPANION MENU
+# SIDEBAR: SYSTEM & AGENT CONTROLS
 # ------------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("### 🌿 Mindly")
-    st.caption("Your study & wellness companion")
+    st.markdown("### 🌿 Mindly Agentic AI")
+    st.caption("Clinical & Wellness Multi-Agent System")
 
     health = settings.check_ollama_health()
-    is_online = health["is_running"] and health["model_installed"]
-    if is_online:
-        st.success("● Mindly is ready to listen")
-    else:
-        st.info("● Quiet Practice Mode (Local)")
+    has_api = bool(os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY"))
 
-    if st.button("🌱 Start Fresh Session", use_container_width=True, on_click=reset_session):
-        st.toast("Your conversation has been refreshed.", icon="🌿")
+    if has_api:
+        st.success("🟢 Cloud LLM Connected (Groq/OpenAI)")
+    elif health["is_running"] and health["model_installed"]:
+        st.success(f"🟢 Local Ollama Active ({settings.ollama_model})")
+    elif health["is_running"]:
+        st.warning("🟡 Ollama Online (Model Pulling)")
+    else:
+        st.info("🔵 Dynamic Local Engine (Zero-Server Mode)")
 
     st.markdown("---")
+    st.markdown("##### 🧩 Architecture Status")
+    st.markdown(f"• **Graph Orchestrator:** `LangGraph StateGraph`")
+    st.markdown(f"• **Knowledge Engine:** `Gale Encyclopedia ({vector_store.count()} chunks)`")
+    st.markdown(f"• **Safety Screen:** `Deterministic Guard + Screen`")
+    st.markdown(f"• **Evaluator Loop:** `Self-Reflection (Max Retries: 2)`")
+    st.markdown(f"• **Active Thread:** `{st.session_state.thread_id[:8]}...`")
 
-    st.markdown("##### ⚙️ Settings")
-    st.session_state.dev_mode = st.toggle(
-        "Developer / Demo Mode",
-        value=st.session_state.dev_mode,
-        help="Enables full agentic routing telemetry, evaluation metrics, and supervisor logs for inspection.",
+    st.markdown("---")
+    st.session_state.enable_tts = st.toggle(
+        "🔊 Voice Audio (TTS)",
+        value=st.session_state.enable_tts,
+        help="Synthesizes voice audio response for messages.",
     )
 
-    memory_active = db.is_memory_enabled()
-    mem_toggle = st.toggle(
-        "Remember My Preferences",
-        value=memory_active,
-        help="Allows Mindly to remember your preferred name and study habits across sessions.",
-    )
-    if mem_toggle != memory_active:
-        db.set_memory_enabled(mem_toggle)
-        st.toast(f"Memory is now {'enabled' if mem_toggle else 'disabled'}.", icon="💭")
+    if st.button("🔄 Reset Agent State", use_container_width=True, on_click=reset_session):
+        st.toast("Agent conversation state refreshed.", icon="🌿")
 
 
 # ------------------------------------------------------------------------------
-# MAIN APPLICATION TABS (STUDENT-FACING)
+# HERO HEADER (CLEAN UNINDENTED HTML)
 # ------------------------------------------------------------------------------
-tab_home, tab_journal, tab_goals, tab_learn, tab_memory, tab_settings = st.tabs([
-    "🏠 Home",
-    "📝 Journal",
-    "🎯 Goals",
-    "📚 Learn",
-    "💭 Memory",
-    "⚙️ Settings",
+st.markdown(
+"""<div style="padding: 1.5rem 1.2rem; background: linear-gradient(135deg, #1b3d2b 0%, #28543b 100%); border-radius: 16px; margin-bottom: 1.2rem; color: #ffffff;">
+    <h1 style="color: #ffffff; margin: 0 0 0.3rem 0; font-size: 2.1rem; font-weight: 700;">🌿 Mindly — Agentic AI Medical & Wellness Copilot</h1>
+    <p style="color: #d1f2e1; margin: 0; font-size: 1.0rem; line-height: 1.5;">Autonomous Hierarchical Multi-Agent System with Gale Encyclopedia of Medicine RAG, Deterministic Safety Interceptors, and Evaluator Reflection Loops</p>
+</div>""",
+unsafe_allow_html=True,
+)
+
+
+# ------------------------------------------------------------------------------
+# AGENTIC TELEMETRY RENDERER (NO RAW HTML TAG LEAKS)
+# ------------------------------------------------------------------------------
+def render_agent_trace(act: Dict[str, Any], sources: List[Dict[str, Any]]):
+    """Renders agent reasoning trace using native Streamlit layout without raw HTML leaks."""
+    is_high_risk = act.get("risk_level") == "HIGH" or act.get("action") == "CRISIS_RESPONSE"
+    expander_title = "🚨 Safety Guard & Route Alert" if is_high_risk else "🧠 LangGraph Agent Execution Trace"
+
+    with st.expander(expander_title, expanded=is_high_risk):
+        c1, c2 = st.columns(2)
+        with c1:
+            risk = act.get("risk_level", "LOW")
+            risk_color = "red" if risk == "HIGH" else ("orange" if risk == "MEDIUM" else "green")
+            st.markdown(f"**🛡️ Risk Level:** :{risk_color}[**{risk}**]")
+            st.markdown(f"**🎯 Intent Detected:** `{act.get('intent', 'GENERAL_CONVERSATION')}`")
+            st.markdown(f"**💭 Emotional State:** `{act.get('emotion', 'neutral')}`")
+            st.markdown(f"**⚡ Planned Action:** `{act.get('action', 'DIRECT_RESPONSE')}`")
+        with c2:
+            st.markdown(f"**🛠️ Tool Executed:** `{act.get('tool', 'direct_conversation')}`")
+            st.markdown(f"**📚 Gale Chunks:** `{len(sources)} retrieved`")
+            eval_val = act.get("evaluation", "PASS")
+            eval_color = "green" if eval_val == "PASS" else "orange"
+            retries = act.get("retries", 0)
+            st.markdown(f"**🔍 Evaluator:** :{eval_color}[**{eval_val}**] `({retries} replans)`")
+            esc = act.get("escalation")
+            if esc:
+                st.markdown(f"**👤 Supervisor:** :red[**{esc}**]")
+            else:
+                st.markdown("**🧩 Graph State:** :green[**Completed**]")
+
+
+# ------------------------------------------------------------------------------
+# MAIN APPLICATION TABS (PURE AGENTIC AI)
+# ------------------------------------------------------------------------------
+tab_chat, tab_graph, tab_rag, tab_safety, tab_diagnostics = st.tabs([
+    "💬 Agentic Copilot",
+    "🧠 Multi-Agent Architecture",
+    "📚 Clinical Knowledge RAG",
+    "🛡️ Safety & Guardrails",
+    "⚡ Model Diagnostics",
 ])
 
 
 # ==============================================================================
-# TAB 1: HOME & CHAT
+# TAB 1: AGENTIC COPILOT
 # ==============================================================================
-with tab_home:
-    # Friendly Hero Header
-    st.markdown(
-        f"""
-        <div class="hero-container">
-            <h1 class="hero-title">🌿 Mindly</h1>
-            <p class="hero-subtitle">Your study & wellness companion</p>
-            <div class="greeting-line">{get_time_greeting()}</div>
-            <div class="mood-prompt">How are you feeling today?</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+with tab_chat:
+    st.markdown("##### 💡 Quick Test Prompts (Agentic Capabilities)")
+    col_p1, col_p2, col_p3, col_p4 = st.columns(4)
 
-    # Mood Check-In Buttons
-    m_cols = st.columns(5)
-    mood_options = [
-        ("😊 Great", "I'm feeling great today and ready to learn!"),
-        ("🙂 Good", "I'm having a pretty good day."),
-        ("😐 Okay", "I'm feeling okay, just taking things one step at a time."),
-        ("😟 Stressed", "I'm feeling stressed about my studies and need some guidance."),
-        ("😔 Down", "I'm feeling down and overwhelmed right now."),
-    ]
-    for idx, (label, prompt_text) in enumerate(mood_options):
-        with m_cols[idx]:
-            if st.button(label, use_container_width=True, key=f"mood_{idx}"):
-                st.session_state.pending_prompt = prompt_text
-                st.rerun()
-
-    # Quick Actions (Real backend tools via LangGraph)
-    st.markdown("<p style='font-size:0.85rem; font-weight:600; color:#3b5c47; margin-top:0.6rem; margin-bottom:0.3rem;'>Quick actions:</p>", unsafe_allow_html=True)
-    q1, q2, q3, q4, q5 = st.columns(5)
-    with q1:
-        if st.button("🫁 Calm me down", use_container_width=True):
-            st.session_state.pending_prompt = "Can you guide me through a calming breathing exercise?"
+    with col_p1:
+        if st.button("🩺 Clinical RAG Test", use_container_width=True):
+            st.session_state.pending_prompt = "What are the common causes and symptoms of hypertension?"
             st.rerun()
-    with q2:
-        if st.button("📚 Study help", use_container_width=True):
-            st.session_state.pending_prompt = "I need help managing my study workload and exam stress."
+    with col_p2:
+        if st.button("🔬 Brain-Gut Symptom", use_container_width=True):
+            st.session_state.pending_prompt = "Why does my stomach hurt badly when I get anxious before exams?"
             st.rerun()
-    with q3:
-        if st.button("📝 Journal", use_container_width=True):
-            st.session_state.pending_prompt = "Journal this: Took a moment to pause and reflect on today."
+    with col_p3:
+        if st.button("🧮 Math / Scope Test", use_container_width=True):
+            st.session_state.pending_prompt = "What is 2+2?"
             st.rerun()
-    with q4:
-        if st.button("🎯 My goals", use_container_width=True):
-            st.session_state.pending_prompt = "What are my study goals and how can I stay consistent?"
-            st.rerun()
-    with q5:
-        if st.button("📖 Learn", use_container_width=True):
-            st.session_state.pending_prompt = "What can you teach me about managing stress and health from your library?"
+    with col_p4:
+        if st.button("🚨 Urgent Medical Test", use_container_width=True):
+            st.session_state.pending_prompt = "I have sudden severe crushing chest pain, difficulty breathing, and fainting."
             st.rerun()
 
-    # Multimodal Controls: Voice & Photo (Clean, non-technical)
-    with st.expander("✨ Add voice or photo to your message", expanded=False):
-        c_voice, c_photo = st.columns(2)
-        with c_voice:
-            st.markdown("##### 🎤 Talk to Mindly")
-            voice_file = st.file_uploader("Upload audio note", type=["wav", "mp3", "m4a"], key="voice_uploader")
-            if voice_file:
-                transcript = transcribe_audio_file(voice_file)
-                st.info(f"**You said:**\n\"{transcript}\"")
-                if st.button("Send Voice Message ➤", key="send_voice"):
-                    st.session_state.pending_prompt = transcript
-                    st.rerun()
+    # Multimodal Inputs Bar
+    with st.expander("🎙️ / 📷 Multimodal Input Controls (Voice & Vision)", expanded=False):
+        c_v1, c_v2 = st.columns(2)
+        with c_v1:
+            st.markdown("**🎙️ Audio Voice Message**")
+            audio_upload = st.file_uploader("Upload audio recording (.wav, .mp3, .ogg):", type=["wav", "mp3", "ogg"], key="audio_uploader")
+            if audio_upload is not None:
+                audio_bytes = audio_upload.read()
+                st.audio(audio_bytes)
+                with st.spinner("Transcribing audio message..."):
+                    transcript = transcribe_audio_file(audio_bytes)
+                    if transcript:
+                        st.info(f"Transcribed: *\"{transcript}\"*")
+                        if st.button("Send Audio Transcript to Agent", use_container_width=True):
+                            st.session_state.pending_prompt = transcript
+                            st.rerun()
 
-        with c_photo:
-            st.markdown("##### 📷 Add a photo")
-            photo_file = st.file_uploader("Attach an image", type=["png", "jpg", "jpeg"], key="photo_uploader")
-            if photo_file:
-                st.session_state.uploaded_image = photo_file
-                st.image(photo_file, caption="Attached photo", use_container_width=True)
+        with c_v2:
+            st.markdown("**📷 Medical Image Inspection**")
+            img_upload = st.file_uploader("Upload symptom or clinical image (.jpg, .png):", type=["jpg", "jpeg", "png"], key="img_uploader")
+            if img_upload is not None:
+                st.session_state.uploaded_image = img_upload.read()
+                st.image(st.session_state.uploaded_image, caption="Uploaded Image for Vision Analyzer", width=220)
 
     st.markdown("---")
 
-    # Message Rendering Loop
-    for msg in st.session_state.messages:
-        avatar = "👤" if msg["role"] == "user" else "🌿"
-        author = "You" if msg["role"] == "user" else "Mindly 🌿"
-        
-        with st.chat_message(msg["role"], avatar=avatar):
-            st.markdown(f"**{author}**")
+    # Render Chat History
+    for idx, msg in enumerate(st.session_state.messages):
+        with st.chat_message(msg["role"]):
+            if msg.get("image"):
+                st.image(msg["image"], caption="Clinical Inspection Image", width=260)
+            
             st.markdown(msg["content"])
 
-            # Safety / Escalation Notification
-            if msg.get("escalation"):
-                st.markdown(
-                    f"""
-                    <div class="safety-banner">
-                        <strong>🚨 Immediate support</strong><br>
-                        Your message suggests you may need immediate human support.<br>
-                        Mindly has activated its safety support process.<br>
-                        <small>Human supervisor notification: <strong>Triggered (Demo Simulation)</strong></small>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            # Source citation chip if RAG was used
+            # Sources chip
             sources = msg.get("sources", [])
             if sources:
-                pages = sorted(list(set(s.get("page", 1) for s in sources)))
+                pages = sorted(list(set(c.get("page", 1) for c in sources)))
                 pages_str = ", ".join(f"Page {p}" for p in pages)
-                st.markdown(
-                    f'<div class="source-chip">📚 <strong>Source</strong>: Gale Encyclopedia of Medicine ({pages_str})</div>',
-                    unsafe_allow_html=True,
-                )
+                st.info(f"📚 **Clinical Knowledge Source**: *Gale Encyclopedia of Medicine* ({pages_str})")
 
-            # Audio Player if TTS synthesized
+            # Audio output if available
             if msg.get("audio_path") and os.path.exists(msg["audio_path"]):
                 st.audio(msg["audio_path"])
 
-            # Technical AI Information (Respectfully collapsed behind friendly expander)
+            # Render Agent Telemetry Trace
             act = msg.get("activity")
             if act and msg["role"] == "assistant":
-                is_high_risk = act.get("risk_level") == "HIGH" or act.get("action") == "CRISIS_RESPONSE"
-                expander_label = "🚨 Safety & Route Details" if is_high_risk else ("⚙️ AI Details" if st.session_state.dev_mode else "🧠 How Mindly handled this")
-                with st.expander(expander_label, expanded=is_high_risk):
-                    if is_high_risk:
-                        # Section 28: Strict High-Risk Activity Display
-                        supervisor_disp = "DEMO TRIGGERED" if "demo" in str(act.get("escalation") or "").lower() else (act.get("escalation") or "DEMO TRIGGERED")
-                        eval_verdict = act.get("evaluation", "PASS")
-                        st.markdown(
-                            f"""
-                            <div class="friendly-details">
-                                <div class="detail-row"><span class="detail-label">🚨 Safety check:</span><span class="detail-val" style="color:#d32f2f; font-weight:700;">HIGH RISK</span></div>
-                                <div class="detail-row"><span class="detail-label">🛡️ Safety guard:</span><span class="detail-val" style="color:#d32f2f; font-weight:600;">TRIGGERED</span></div>
-                                <div class="detail-row"><span class="detail-label">📌 Intent:</span><span class="detail-val">Crisis Related</span></div>
-                                <div class="detail-row"><span class="detail-label">🚨 Action:</span><span class="detail-val">Crisis Response</span></div>
-                                <div class="detail-row"><span class="detail-label">🔄 Normal routing:</span><span class="detail-val" style="font-weight:600;">BYPASSED</span></div>
-                                <div class="detail-row"><span class="detail-label">👤 Supervisor:</span><span class="detail-val">{supervisor_disp}</span></div>
-                                <div class="detail-row"><span class="detail-label">✓ Safety evaluation:</span><span class="detail-val" style="color:#2e7d32; font-weight:600;">{eval_verdict}</span></div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                    elif st.session_state.dev_mode:
-                        # Full developer / professor telemetry
-                        st.markdown(
-                            f"""
-                            <div class="friendly-details">
-                                <div class="detail-row"><span class="detail-label">🛡️ Risk Level:</span><span class="detail-val">{act.get('risk_level', 'LOW')}</span></div>
-                                <div class="detail-row"><span class="detail-label">🎯 Detected Intent:</span><span class="detail-val">{act.get('intent', 'GENERAL_CONVERSATION')}</span></div>
-                                <div class="detail-row"><span class="detail-label">💭 Detected Emotion:</span><span class="detail-val">{act.get('emotion', 'neutral')}</span></div>
-                                <div class="detail-row"><span class="detail-label">⚡ Selected Action:</span><span class="detail-val">{act.get('action', 'DIRECT_RESPONSE')}</span></div>
-                                <div class="detail-row"><span class="detail-label">🛠️ Tool Executed:</span><span class="detail-val">{act.get('tool', 'direct_conversation')}</span></div>
-                                <div class="detail-row"><span class="detail-label">📚 Knowledge Chunks:</span><span class="detail-val">{len(sources)} retrieved</span></div>
-                                <div class="detail-row"><span class="detail-label">🔍 Evaluator Verdict:</span><span class="detail-val">{act.get('evaluation', 'PASS')} ({act.get('retries', 0)} replan attempts)</span></div>
-                                <div class="detail-row"><span class="detail-label">🧩 Graph Status:</span><span class="detail-val">Completed successfully</span></div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        # Friendly student-oriented summary (Sections 27 & 28)
-                        intent_readable = act.get("intent", "").replace("_", " ").title()
-                        action_readable = "Urgent clinical assessment guidance" if "URGENT" in act.get("intent", "") or "urgent" in str(act.get("tool", "")).lower() else (
-                            "Knowledge library search" if "RAG" in act.get("action", "") else (
-                                "Calming exercise" if "GROUNDING" in act.get("action", "") else (
-                                    "Adaptive coping plan" if "COPING" in act.get("action", "") else (
-                                        "Journal recorder" if "JOURNAL" in act.get("action", "") else (
-                                            "Habits & goals tracker" if "GOAL" in act.get("action", "") else (
-                                                "Memory vault" if "MEMORY" in act.get("action", "") else "Thoughtful listening"
-                                            )
-                                        )
-                                    )
-                                )
-                            )
-                        )
-                        eval_text = "✓ Approved by Mindly Evaluator" if act.get("evaluation") == "PASS" else "⚠️ Evaluator: replanning verified"
-                        st.markdown(
-                            f"""
-                            <div class="friendly-details">
-                                <div class="detail-row"><span class="detail-label">Safety check:</span><span class="detail-val">✓ Passed (Safe)</span></div>
-                                <div class="detail-row"><span class="detail-label">Topic:</span><span class="detail-val">{intent_readable}</span></div>
-                                <div class="detail-row"><span class="detail-label">Decision:</span><span class="detail-val">{action_readable}</span></div>
-                                {'<div class="detail-row"><span class="detail-label">Knowledge source:</span><span class="detail-val">Gale Encyclopedia of Medicine</span></div>' if sources else ''}
-                                {'<div class="detail-row"><span class="detail-label">Information verified:</span><span class="detail-val">✓ Found relevant material</span></div>' if sources else ''}
-                                <div class="detail-row"><span class="detail-label">Response check:</span><span class="detail-val">{eval_text}</span></div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                render_agent_trace(act, sources)
+
+    # Chat Action Controls
+    if st.session_state.messages:
+        c_clr, c_exp = st.columns([1, 1])
+        with c_clr:
+            if st.button("🗑️ Clear Chat History", use_container_width=True, key="clear_chat_hist"):
+                st.session_state.messages = []
+                st.rerun()
+        with c_exp:
+            transcript_md = "# Mindly Agentic AI Conversation Log\n\n" + "\n\n".join(
+                [f"### {'👤 User' if m['role'] == 'user' else '🌿 Mindly Agent'}\n{m['content']}" for m in st.session_state.messages]
+            )
+            st.download_button(
+                "📥 Export Session Markdown",
+                data=transcript_md,
+                file_name=f"mindly_session_{datetime.now().strftime('%Y%m%d_%H%M')}.md",
+                mime="text/markdown",
+                use_container_width=True,
+                key="export_chat_hist",
+            )
 
     # Chat Input Box
-    user_input = st.chat_input("💬 Tell me what's on your mind...")
+    user_input = st.chat_input("💬 Ask a health question, share symptoms, or test agent routing...")
 
     active_query = None
     if st.session_state.pending_prompt:
@@ -470,312 +300,254 @@ with tab_home:
         active_query = user_input.strip()
 
     if active_query or st.session_state.uploaded_image:
-        query_text = active_query or "Please analyze this uploaded photo."
-        st.session_state.messages.append({"role": "user", "content": query_text})
-        
-        with st.chat_message("user", avatar="👤"):
-            st.markdown("**You**")
-            st.markdown(query_text)
-
-        img_obj = st.session_state.uploaded_image
+        user_text = active_query or ""
+        img_data = st.session_state.uploaded_image
         st.session_state.uploaded_image = None
-        modality = "image" if img_obj else "text"
 
-        sim_mode = not is_online
+        # Display user message
+        st.session_state.messages.append({
+            "role": "user",
+            "content": user_text,
+            "image": img_data,
+        })
+        with st.chat_message("user"):
+            if img_data:
+                st.image(img_data, width=260)
+            st.markdown(user_text)
 
-        with st.chat_message("assistant", avatar="🌿"):
-            st.markdown("**Mindly 🌿**")
-            with st.spinner("Reflecting with you..."):
+        # Run through Agentic LangGraph StateGraph
+        with st.chat_message("assistant"):
+            with st.spinner("Agent analyzing, planning tools, and evaluating..."):
+                input_mode = "image" if img_data else "text"
                 result = send_message(
-                    user_text=query_text,
+                    user_text=user_text,
                     thread_id=st.session_state.thread_id,
-                    input_type=modality,
-                    image_data=img_obj,
-                    use_simulation=sim_mode,
+                    input_type=input_mode,
+                    image_data=img_data,
+                    use_simulation=False,
                 )
-                resp_text = result["response"]
-                retrieved_srcs = result.get("sources", [])
-                escalation_alert = result.get("escalation")
 
-                # Synthesize gentle voice audio if TTS is available
-                audio_file_path = synthesize_speech(resp_text)
-
-                act_data = {
-                    "intent": result.get("intent", "GENERAL_CONVERSATION"),
-                    "emotion": result.get("emotion", "neutral"),
-                    "risk_level": result.get("risk_level", "LOW"),
-                    "safety_status": result.get("safety_status", "PASSED"),
-                    "health_priority": result.get("health_priority", "NONE"),
-                    "action": result.get("action", "DIRECT_RESPONSE"),
-                    "tool": result.get("tool", "direct_conversation"),
-                    "reasoning": result.get("reasoning", ""),
-                    "evaluation": result.get("evaluation", "PASS"),
-                    "retries": result.get("retries", 0),
-                    "replan_count": result.get("replan_count", 0),
-                    "escalation": result.get("escalation"),
-                }
-
+                resp_text = result.get("response", "")
                 st.markdown(resp_text)
 
-                if escalation_alert:
-                    st.markdown(
-                        f"""
-                        <div class="safety-banner">
-                            <strong>🚨 Immediate support</strong><br>
-                            Your message suggests you may need immediate human support.<br>
-                            Mindly has activated its safety support process.<br>
-                            <small>Human supervisor notification: <strong>Triggered (Demo Simulation)</strong></small>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    st.session_state.supervisor_alerts.append({
-                        "time": datetime.now().strftime("%I:%M %p"),
-                        "risk": "HIGH",
-                        "prompt": query_text[:60],
-                        "status": "ESCALATION TRIGGERED (Simulation)",
-                    })
-
+                retrieved_srcs = result.get("sources", [])
                 if retrieved_srcs:
-                    pgs = sorted(list(set(s.get("page", 1) for s in retrieved_srcs)))
+                    pgs = sorted(list(set(c.get("page", 1) for c in retrieved_srcs)))
                     pgs_str = ", ".join(f"Page {p}" for p in pgs)
-                    st.markdown(
-                        f'<div class="source-chip">📚 <strong>Source</strong>: Gale Encyclopedia of Medicine ({pgs_str})</div>',
-                        unsafe_allow_html=True,
-                    )
+                    st.info(f"📚 **Clinical Knowledge Source**: *Gale Encyclopedia of Medicine* ({pgs_str})")
 
-                if audio_file_path and os.path.exists(audio_file_path):
-                    st.audio(audio_file_path)
+                # Speech synthesis
+                audio_file_path = None
+                if st.session_state.enable_tts:
+                    try:
+                        audio_file_path = synthesize_speech(resp_text[:350])
+                        if audio_file_path and os.path.exists(audio_file_path):
+                            st.audio(audio_file_path)
+                    except Exception:
+                        pass
 
-                # AI Details Expander
-                exp_label = "⚙️ AI Details" if st.session_state.dev_mode else "🧠 How Mindly handled this"
-                with st.expander(exp_label, expanded=False):
-                    if st.session_state.dev_mode:
-                        st.markdown(
-                            f"""
-                            <div class="friendly-details">
-                                <div class="detail-row"><span class="detail-label">🛡️ Risk Level:</span><span class="detail-val">{act_data.get('risk_level', 'LOW')}</span></div>
-                                <div class="detail-row"><span class="detail-label">🎯 Detected Intent:</span><span class="detail-val">{act_data.get('intent', 'GENERAL_CONVERSATION')}</span></div>
-                                <div class="detail-row"><span class="detail-label">💭 Detected Emotion:</span><span class="detail-val">{act_data.get('emotion', 'neutral')}</span></div>
-                                <div class="detail-row"><span class="detail-label">⚡ Selected Action:</span><span class="detail-val">{act_data.get('action', 'DIRECT_RESPONSE')}</span></div>
-                                <div class="detail-row"><span class="detail-label">🛠️ Tool Executed:</span><span class="detail-val">{act_data.get('tool', 'direct_conversation')}</span></div>
-                                <div class="detail-row"><span class="detail-label">📚 Knowledge Chunks:</span><span class="detail-val">{len(retrieved_srcs)} retrieved</span></div>
-                                <div class="detail-row"><span class="detail-label">🔍 Evaluator Verdict:</span><span class="detail-val">{act_data.get('evaluation', 'PASS')} ({act_data.get('retries', 0)} replan attempts)</span></div>
-                                <div class="detail-row"><span class="detail-label">🧩 Graph Status:</span><span class="detail-val">Completed successfully</span></div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        int_read = act_data.get("intent", "").replace("_", " ").title()
-                        act_read = "Knowledge library search" if "RAG" in act_data.get("action", "") else (
-                            "Calming exercise" if "GROUNDING" in act_data.get("action", "") else (
-                                "Adaptive coping plan" if "COPING" in act_data.get("action", "") else "Thoughtful listening"
-                            )
-                        )
-                        st.markdown(
-                            f"""
-                            <div class="friendly-details">
-                                <div class="detail-row"><span class="detail-label">Safety check:</span><span class="detail-val">✓ Passed</span></div>
-                                <div class="detail-row"><span class="detail-label">Topic:</span><span class="detail-val">{int_read}</span></div>
-                                <div class="detail-row"><span class="detail-label">Decision:</span><span class="detail-val">{act_read}</span></div>
-                                {'<div class="detail-row"><span class="detail-label">Knowledge source:</span><span class="detail-val">Gale Encyclopedia of Medicine</span></div>' if retrieved_srcs else ''}
-                                {'<div class="detail-row"><span class="detail-label">Information verified:</span><span class="detail-val">✓ Found relevant material</span></div>' if retrieved_srcs else ''}
-                                <div class="detail-row"><span class="detail-label">Response check:</span><span class="detail-val">✓ Approved by Mindly Evaluator</span></div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                # Agent Trace Telemetry
+                render_agent_trace(result, retrieved_srcs)
 
                 st.session_state.messages.append({
                     "role": "assistant",
                     "content": resp_text,
-                    "activity": act_data,
+                    "activity": result,
                     "sources": retrieved_srcs,
                     "audio_path": audio_file_path,
-                    "escalation": escalation_alert,
                 })
 
 
 # ==============================================================================
-# TAB 2: JOURNAL
+# TAB 2: MULTI-AGENT ARCHITECTURE (LANGGRAPH VISUALIZER)
 # ==============================================================================
-with tab_journal:
-    st.markdown("### 📝 My Journal")
-    st.caption("A private space for your thoughts, reflections, and daily study moments.")
+with tab_graph:
+    st.markdown("### 🧠 LangGraph Multi-Agent Architecture")
+    st.caption("Visual StateGraph execution lifecycle and node responsibility breakdown.")
 
-    with st.container():
-        journal_text = st.text_area(
-            "Write something down...",
-            placeholder="Today was busy, but I managed to finish my assignment and take a short walk...",
-            height=110,
-        )
-        j_col1, j_col2 = st.columns([3, 1])
-        with j_col1:
-            selected_mood = st.selectbox("How did today feel?", ["calm", "grateful", "reflective", "stressed", "exhausted", "hopeful"])
-        with j_col2:
-            st.write("")
-            st.write("")
-            if st.button("Add entry", use_container_width=True) and journal_text.strip():
-                db.create_journal_entry(journal_text.strip(), mood=selected_mood)
-                st.success("Entry saved.")
-                st.rerun()
+    st.markdown(
+        """```mermaid
+graph TD
+    START((START)) --> SAFETY[assess_safety<br>Deterministic Risk Pre-Screen]
+    SAFETY -->|HIGH RISK| CRISIS[crisis_escalation_node<br>Lifelines & Crisis Protocol]
+    CRISIS --> SUPERVISOR[supervisor_escalation<br>Human-in-the-Loop Alert]
+    SUPERVISOR --> END_NODE((END))
 
-    st.markdown("##### Recent entries")
+    SAFETY -->|NORMAL / SAFE| UNDERSTAND[understand_node<br>Input Normalization]
+    UNDERSTAND --> INTENT[intent_node<br>12 Clinical/Wellness Categories]
+    INTENT --> EMOTION[emotion_node<br>Affect & Sentiment Analysis]
+    EMOTION --> PLANNER[planner_node<br>Hierarchical Priority Router 0-9]
+
+    PLANNER -->|Medical Inquiries| RAG[tools/rag<br>Gale Encyclopedia RAG]
+    PLANNER -->|Acute Red-Flags| URGENT[tools/rag<br>Urgent Clinical Protocol]
+    PLANNER -->|Symptom Image| VISION[tools/vision<br>Multimodal Vision Analyzer]
+    PLANNER -->|Calming Requests| GROUND[tools/grounding<br>Box Breathing / Reflection]
+    PLANNER -->|Stress / Workload| COPING[tools/coping<br>Adaptive Coping Generator]
+    PLANNER -->|Factual / Math / Scope| DIRECT[tools/direct_response<br>Direct & Scope Guidance]
+
+    RAG --> EVALUATOR[evaluator_node<br>Self-Reflection & Hallucination Check]
+    VISION --> EVALUATOR
+    GROUND --> EVALUATOR
+    COPING --> EVALUATOR
+    DIRECT --> EVALUATOR
+
+    EVALUATOR -->|RETRY: replan count < 2| PLANNER
+    EVALUATOR -->|PASS or Max Retries| FINAL[generate_final_response]
+    FINAL --> END_NODE
+```"""
+    )
+
     st.markdown("---")
-    entries = db.get_journal_entries(limit=10)
-    if entries:
-        for ent in entries:
+    st.markdown("##### 🧩 Architectural Node Responsibilities")
+
+    c_n1, c_n2 = st.columns(2)
+    with c_n1:
+        with st.container(border=True):
+            st.markdown("**🛡️ Priority 0: Deterministic Safety Interceptor**")
             st.markdown(
-                f"""
-                <div class="student-card">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:0.4rem;">
-                        <span style="font-weight:600; color:#1e3d2b;">🗓️ {ent['timestamp'][:16]}</span>
-                        <span class="source-chip" style="margin-top:0;">{ent['mood'].capitalize()}</span>
-                    </div>
-                    <p style="margin:0.3rem 0 0 0; font-size:0.92rem; color:#2c3e34; line-height:1.5;">{ent['entry']}</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
+                "Screens user input for acute high-risk indicators (self-harm, crisis). "
+                "High risk immediately **bypasses normal routing**, delivers validated crisis lifelines (988, 741741), "
+                "and records an auditable escalation record."
             )
-    else:
-        st.info("No journal entries yet. Write your first reflection above, or type *'Journal this: ...'* in chat.")
+
+        with st.container(border=True):
+            st.markdown("**🎯 Cognitive Understanding (Intent & Emotion)**")
+            st.markdown(
+                "Categorizes input across 12 standardized clinical and conversational intents "
+                "(HEALTH_INFORMATION, URGENT_HEALTH, EMOTIONAL_SUPPORT, GROUNDING_REQUEST, OUT_OF_SCOPE, etc.) "
+                "and detects dominant emotional tone."
+            )
+
+    with c_n2:
+        with st.container(border=True):
+            st.markdown("**⚡ Autonomous Planner Node (Hierarchical 0-9)**")
+            st.markdown(
+                "Dynamically selects the optimal tool based on clinical urgency, safety screening, "
+                "and input type. Enforces domain scope boundaries and prevents unnecessary tool execution."
+            )
+
+        with st.container(border=True):
+            st.markdown("**🔍 Self-Reflective Evaluator Node**")
+            st.markdown(
+                "Validates tool outputs for clinical boundaries (non-diagnostic guarantee), output completeness (>20 chars), "
+                "and grounding. Implements a bounded reflection loop (`MAX_RETRIES = 2`) preventing infinite execution cycles."
+            )
 
 
 # ==============================================================================
-# TAB 3: GOALS
+# TAB 3: CLINICAL KNOWLEDGE RAG STUDIO
 # ==============================================================================
-with tab_goals:
-    st.markdown("### 🎯 My Goals")
-    st.caption("Keep track of your study targets and daily habits.")
+with tab_rag:
+    st.markdown("### 📚 Clinical Knowledge RAG Studio")
+    st.caption("Inspect and query the local Gale Encyclopedia of Medicine Vector Store.")
 
-    # Add Goal Section
-    with st.expander("➕ Add a new goal", expanded=False):
-        new_goal_title = st.text_input("What goal would you like to set?", placeholder="e.g. Study for 2 hours in Pomodoro intervals")
-        target_date = st.text_input("Target date (optional)", placeholder="e.g. Tomorrow by 6 PM")
-        if st.button("Create Goal", use_container_width=True) and new_goal_title.strip():
-            db.create_goal(title=new_goal_title.strip(), target_date=target_date.strip())
-            st.success("Goal added successfully.")
-            st.rerun()
+    rag_query = st.text_input("Enter a medical symptom, disease, or clinical query:", placeholder="e.g. hypertension, migraine, iron deficiency, gastritis, insomnia")
 
-    st.markdown("##### Today's goals")
-    goals = db.get_goals()
-    if goals:
-        for g in goals:
-            is_done = g["status"] == "completed"
-            g_icon = "✓" if is_done else "○"
-            status_style = "text-decoration: line-through; color: #789082;" if is_done else "color: #1e3d2b; font-weight: 500;"
-            
-            c_g1, c_g2 = st.columns([5, 1])
-            with c_g1:
-                st.markdown(
-                    f"""
-                    <div style="padding: 0.5rem 0; font-size: 0.95rem; {status_style}">
-                        <strong>{g_icon}</strong> {g['title']}
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-            with c_g2:
-                if not is_done:
-                    if st.button("Mark done", key=f"done_{g['id']}", use_container_width=True):
-                        db.update_goal_status(g["id"], "completed")
-                        st.rerun()
-    else:
-        st.info("No goals tracked yet. Add a study target above, or type *'Create a goal to ...'* in chat.")
-
-
-# ==============================================================================
-# TAB 4: LEARN (KNOWLEDGE EXPLORER)
-# ==============================================================================
-with tab_learn:
-    st.markdown("### 📚 Learn")
-    st.caption("Ask Mindly about a health or wellness topic. Mindly can search its trusted knowledge library when a question needs additional information.")
-
-    learn_query = st.text_input("What would you like to learn about?", placeholder="e.g. What causes tension headaches? Or: What is hypertension?")
-    
-    if st.button("Explore Topic", use_container_width=True) and learn_query:
-        with st.spinner("Searching trusted health library..."):
-            chunks = retrieve_relevant_chunks(learn_query, top_k=3)
+    if st.button("🔍 Search Gale Encyclopedia Vector Store", use_container_width=True) and rag_query.strip():
+        with st.spinner("Performing semantic vector similarity search..."):
+            chunks = retrieve_relevant_chunks(rag_query.strip(), top_k=3)
             if chunks:
                 pages = sorted(list(set(c.get("page", 1) for c in chunks)))
                 pages_str = ", ".join(f"Page {p}" for p in pages)
-                st.markdown(f'<div class="source-chip">📚 <strong>Source</strong>: Gale Encyclopedia of Medicine ({pages_str})</div>', unsafe_allow_html=True)
-                
-                for c in chunks:
-                    with st.container():
-                        st.markdown(
-                            f"""
-                            <div class="student-card">
-                                <span style="font-size:0.8rem; font-weight:600; color:#3b7a54;">Excerpt from Page {c['page']}</span>
-                                <p style="margin-top:0.4rem; font-size:0.9rem; color:#233a2d; line-height:1.5;">{c['text']}</p>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                st.caption("*(Educational Disclaimer: This information is derived from the Gale Encyclopedia of Medicine for educational awareness and does not replace professional medical evaluation.)*")
+                st.success(f"✓ Retrieved {len(chunks)} relevant clinical chunks across {pages_str}")
+
+                for idx, c in enumerate(chunks, 1):
+                    with st.container(border=True):
+                        st.markdown(f"**📄 Excerpt {idx} — Page {c.get('page', 1)}**")
+                        st.markdown(f"> {c.get('text', '')}")
+                        st.caption(f"Length: {len(c.get('text', ''))} characters | Source: Gale Encyclopedia of Medicine")
+
+                st.caption("*(Educational Disclaimer: Derived from the Gale Encyclopedia of Medicine for educational awareness. Does not replace professional medical evaluation.)*")
             else:
-                st.info("No specific knowledge found for that query. You can also ask directly in the chat tab!")
+                st.warning("No matching excerpts found for that query in the vector store.")
 
 
 # ==============================================================================
-# TAB 5: MEMORY
+# TAB 4: SAFETY & GUARDRAILS MONITOR
 # ==============================================================================
-with tab_memory:
-    st.markdown("### 💭 Memory")
-    st.caption("Mindly can remember useful preferences when you allow it.")
+with tab_safety:
+    st.markdown("### 🛡️ Safety & Supervisor Guardrails")
+    st.caption("Real-time safety guard testing sandbox and supervisor escalation audit trail.")
 
-    mem_status = db.is_memory_enabled()
-    st.markdown(f"**Memory Status**: `{'ON' if mem_status else 'OFF'}`")
+    st.markdown("##### 🔬 Live Safety Screening Sandbox")
+    test_prompt = st.text_input("Test any query against the safety classifiers:", placeholder="e.g. I have severe chest pain and cannot breathe")
 
-    st.markdown("##### What Mindly remembers")
-    stored = db.get_memories()
-    if stored:
-        for m in stored:
-            st.markdown(f"• **{m['key'].replace('_', ' ').title()}**: {m['value']}")
-        
-        st.markdown("---")
-        if st.button("Forget All Memories", use_container_width=True):
-            db.clear_memories()
-            st.success("All stored preferences have been cleared.")
-            st.rerun()
-    else:
-        st.info("Mindly hasn't saved any personal preferences yet. You can tell Mindly things like *'Remember that my preferred name is Alex'* in chat.")
+    if test_prompt.strip():
+        safety_eval = assess_safety(test_prompt.strip())
+        urgent_eval = screen_urgent_medical(test_prompt.strip())
+        scope_eval = is_out_of_scope(test_prompt.strip())
+        math_eval = evaluate_math_expression(test_prompt.strip())
 
+        col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+        with col_s1:
+            risk = safety_eval["risk_level"]
+            col_color = "red" if risk == "HIGH" else "green"
+            st.metric("Risk Level", f"{risk}", delta="SAFE" if risk == "LOW" else "GUARD TRIGGERED", delta_color="normal" if risk == "LOW" else "inverse")
+        with col_s2:
+            st.metric("Urgent Medical", "YES" if urgent_eval["is_urgent"] else "NO")
+        with col_s3:
+            st.metric("Out of Scope", "YES" if scope_eval else "NO")
+        with col_s4:
+            st.metric("Math Expression", f"{math_eval['ans']}" if math_eval else "NO")
 
-# ==============================================================================
-# TAB 6: SETTINGS & ABOUT
-# ==============================================================================
-with tab_settings:
-    st.markdown("### ⚙️ Settings & Project Information")
-    st.caption("Inspect system settings, companion preferences, and project details.")
-
-    st.markdown("##### Companion Settings")
-    st.write(f"• **Primary LLM**: `{settings.ollama_model}` ({'Online' if is_online else 'Quiet Practice Mode'})")
-    st.write(f"• **Vision Model**: `{settings.vision_model}`")
-    st.write(f"• **Knowledge Library**: `{vector_store.count()} indexed chunks`")
-    st.write(f"• **Safety Escalation Protocol**: `{settings.escalation_mode.upper()} (Supervisor: {settings.supervisor_name})`")
+        if safety_eval["risk_level"] == "HIGH":
+            st.error("🚨 HIGH RISK DETECTED: Normal agentic routing bypassed. Crisis response & supervisor alert triggered.")
+        elif urgent_eval["is_urgent"]:
+            st.warning("⚠️ URGENT CLINICAL SYMPTOMS: Immediate assessment advisory recommended.")
 
     st.markdown("---")
-    st.markdown("##### About Mindly")
+    st.markdown("##### 🚨 Supervisor Escalation Audit Log")
+    escalations = db.get_escalations(limit=20)
+    if escalations:
+        for esc in escalations:
+            with st.container(border=True):
+                c_e1, c_e2 = st.columns([3, 1])
+                with c_e1:
+                    st.markdown(f"**Timestamp:** `{esc.get('timestamp')}`")
+                    st.markdown(f"**Masked Prompt:** *\"{esc.get('user_prompt')}\"*")
+                    st.markdown(f"**Trigger Reason:** {esc.get('reason')}")
+                with c_e2:
+                    st.markdown(f"**Status:** `{esc.get('status')}`")
+                    st.markdown(f"**Supervisor:** `{esc.get('supervisor_name')}`")
+    else:
+        st.info("No supervisor escalations recorded in this session.")
+
+
+# ==============================================================================
+# TAB 5: MODEL DIAGNOSTICS & SYSTEM SPECS
+# ==============================================================================
+with tab_diagnostics:
+    st.markdown("### ⚡ Model Diagnostics & System Specs")
+    st.caption("Inspect live AI backend orchestration and local execution health.")
+
+    c_d1, c_d2 = st.columns(2)
+    with c_d1:
+        with st.container(border=True):
+            st.markdown("**🤖 Model Orchestrator**")
+            st.markdown(f"• **Ollama Server:** `http://localhost:11434` ({'ONLINE' if health['is_running'] else 'OFFLINE'})")
+            st.markdown(f"• **Configured Ollama Model:** `{settings.ollama_model}`")
+            st.markdown(f"• **Installed Models:** `{', '.join(health.get('available_models', [])) or 'None'}`")
+            st.markdown(f"• **Vision Model:** `{settings.vision_model}`")
+            st.markdown(f"• **Ollama Temperature:** `{settings.ollama_temperature}`")
+            st.markdown(f"• **Max Evaluator Retries:** `{settings.max_eval_retries}`")
+
+    with c_d2:
+        with st.container(border=True):
+            st.markdown("**📦 Vector Store & Database**")
+            st.markdown(f"• **Vector Store Count:** `{vector_store.count()} indexed chunks`")
+            st.markdown(f"• **Knowledge Directory:** `{settings.knowledge_dir}`")
+            st.markdown(f"• **Gale PDF Filename:** `{settings.gale_pdf_filename}`")
+            st.markdown(f"• **SQLite Database:** `{settings.db_path}`")
+            st.markdown(f"• **Thread Checkpointer:** `langgraph.checkpoint.memory.MemorySaver`")
+
+    st.markdown("---")
+    st.markdown("##### 📋 System Technical Specifications")
     st.markdown(
         """
-        - **Project**: Mindly — Study & Wellness Companion
-        - **Version**: Lab 3 (Multimodal Agentic Architecture)
-        - **Technologies**: LangGraph, Local Ollama, Gale Encyclopedia of Medicine (RAG), Whisper STT, Pyttsx3 TTS, Multimodal Vision, SQLite.
-        - **Clinical Safety Boundary**: Educational support companion. Non-diagnostic, deterministic safety screening, and simulated human supervisor escalation.
+        - **Project**: Mindly — Agentic AI Medical & Wellness Copilot
+        - **Architecture**: LangGraph StateGraph, Deterministic Guardrails, Self-Evaluating Reflection Loops
+        - **Clinical Core**: Gale Encyclopedia of Medicine local Vector Database
+        - **Multi-Backend LLMs**: Local Ollama (`llama3.2:1b`, `llava`), Groq Cloud API, OpenAI API, and Smart Dynamic Local Fallback
+        - **Clinical Safety Guarantee**: Non-diagnostic, deterministic safety screening, medical domain scope boundary enforcement, and human supervisor escalation
         """
     )
-
-    if st.session_state.supervisor_alerts:
-        st.markdown("##### 🚨 Active Supervisor Escalations (Demo Simulation)")
-        for alert in st.session_state.supervisor_alerts:
-            st.markdown(
-                f"""
-                <div class="safety-banner">
-                    <strong>Alert: {alert['time']}</strong> | Status: <code>{alert['status']}</code><br>
-                    Trigger snippet: <em>"{alert['prompt']}"</em>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )

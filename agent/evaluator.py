@@ -1,4 +1,4 @@
-"""Evaluator node for Mindly Lab 3 hierarchical agentic loop.
+"""Evaluator node for Mindly hierarchical agentic loop.
 
 Inspects tool outputs, routing choices, safety compliance, groundedness,
 and clinical boundaries. Returns 'PASS' or 'RETRY' with loop bounds

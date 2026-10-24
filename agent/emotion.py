@@ -6,6 +6,7 @@ Categories: calm, happy, sad, anxious, stressed, angry, overwhelmed, confused, n
 
 from typing import Optional
 from langchain_core.messages import HumanMessage, SystemMessage
+from agent.intent import evaluate_math_expression
 
 
 EMOTION_CATEGORIES = [
@@ -73,7 +74,12 @@ def classify_emotion(user_text: str, llm=None) -> str:
     if not user_text.strip():
         return "neutral"
 
+    # Math expressions are purely factual/neutral
+    if evaluate_math_expression(user_text) is not None:
+        return "neutral"
+
     if llm is not None:
+
         try:
             messages = [
                 SystemMessage(content=EMOTION_PROMPT),

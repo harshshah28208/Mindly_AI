@@ -1,4 +1,4 @@
-"""Agentic planner and hierarchical decision-making orchestrator for Mindly Lab 3.
+"""Agentic planner and hierarchical decision-making orchestrator for Mindly.
 
 Implements the explicit 10-level routing priority model (Priorities 0-9):
 - PRIORITY 0: SYSTEM / INVALID INPUT
@@ -10,7 +10,7 @@ Implements the explicit 10-level routing priority model (Priorities 0-9):
 - PRIORITY 6: GOAL / PLANNING REQUEST
 - PRIORITY 7: EXPLICIT GROUNDING REQUEST
 - PRIORITY 8: COPING / EMOTIONAL SUPPORT
-- PRIORITY 9: GENERAL CONVERSATION
+- PRIORITY 9: GENERAL CONVERSATION & SCOPE BOUNDARY
 
 Demonstrates dynamic multimodal agentic behavior:
 UNDERSTAND -> ANALYZE -> DECIDE -> PLAN -> SELECT TOOL -> EXECUTE -> EVALUATE
@@ -35,7 +35,7 @@ def plan_action(
     evaluation_result: Optional[str] = None,
     retry_count: int = 0,
 ) -> Dict[str, str]:
-    """Determine the optimal agentic action and tool for Mindly Lab 3 adhering strictly to priorities 0-9.
+    """Determine the optimal agentic action and tool for Mindly adhering strictly to priorities 0-9.
 
     Returns:
         Dict containing:
@@ -261,6 +261,16 @@ def plan_action(
             "selected_action": "DIRECT_RESPONSE",
             "tool_name": "direct_conversation",
             "reasoning_summary": "Priority 8 Emotional Support: identified general emotional sharing; selected open empathetic listening.",
+        }
+
+    # --------------------------------------------------------------------------
+    # OUT-OF-SCOPE / UNNECESSARY QUERIES ROUTING
+    # --------------------------------------------------------------------------
+    if detected_intent == "OUT_OF_SCOPE":
+        return {
+            "selected_action": "DIRECT_RESPONSE",
+            "tool_name": "scope_boundary_protocol",
+            "reasoning_summary": "Scope Boundary Notice: query is unrelated to wellness, mental health, or medical guidance; guiding user to medical/wellness scope.",
         }
 
     # --------------------------------------------------------------------------

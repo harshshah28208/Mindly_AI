@@ -1,4 +1,4 @@
-"""Document ingestion pipeline for Mindly Lab 3 RAG.
+"""Document ingestion pipeline for Mindly RAG.
 
 Extracts text from the Gale Encyclopedia of Medicine PDF,
 splits into semantically overlapping chunks with rich metadata,

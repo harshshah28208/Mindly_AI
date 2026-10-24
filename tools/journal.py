@@ -1,4 +1,4 @@
-"""Wellness journaling tool for Mindly Lab 3."""
+"""Wellness journaling tool for Mindly."""
 
 import re
 from memory.database import db

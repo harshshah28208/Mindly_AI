@@ -19,7 +19,7 @@ from rag.ingestion import ingest_knowledge
 def main():
     force = "--force" in sys.argv or "-f" in sys.argv
     print("=" * 60)
-    print("MINDLY LAB 3 — KNOWLEDGE INGESTION PIPELINE")
+    print("MINDLY — KNOWLEDGE INGESTION PIPELINE")
     print("=" * 60)
     print(f"Target PDF Path : {settings.gale_pdf_path}")
     print(f"Vector DB Dir   : {settings.vector_db_dir}")

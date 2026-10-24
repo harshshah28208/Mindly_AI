@@ -1,4 +1,4 @@
-"""Long-term memory management tool for Mindly Lab 3."""
+"""Long-term memory management tool for Mindly."""
 
 import re
 from memory.database import db

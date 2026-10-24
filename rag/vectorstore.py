@@ -1,4 +1,4 @@
-"""Local persistent vector store for Mindly Lab 3.
+"""Local persistent vector store for Mindly.
 
 Stores chunk embeddings and rich metadata (document_name, source, page, chunk_id)
 with cosine similarity search using NumPy.

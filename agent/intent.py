@@ -1,6 +1,6 @@
-"""Intent classification agent node for Mindly Lab 3.
+"""Intent classification agent node for Mindly.
 
-Classifies user messages into standardized conversational, educational, and wellness intents:
+Classifies user messages into standardized conversational, educational, wellness, and medical intents:
 - GENERAL_CONVERSATION
 - EMOTIONAL_SUPPORT
 - GROUNDING_REQUEST
@@ -12,12 +12,61 @@ Classifies user messages into standardized conversational, educational, and well
 - MEMORY_REQUEST
 - PLANNING_REQUEST
 - CRISIS_RELATED
+- OUT_OF_SCOPE (unrelated technical, financial, or non-medical queries)
 """
 
+import ast
+import operator
 import re
-from typing import Optional
+from typing import Any, Dict, Optional, Tuple
 from langchain_core.messages import HumanMessage, SystemMessage
 from agent.safety import assess_safety, screen_urgent_medical, is_educational_or_third_person
+
+MATH_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.Pow: operator.pow,
+    ast.Mod: operator.mod,
+}
+
+
+def evaluate_math_expression(text: str) -> Optional[Dict[str, Any]]:
+    """Safely parse and evaluate basic arithmetic expressions without eval."""
+    clean = (text or "").strip()
+    if not clean:
+        return None
+    m = re.match(r"^(?:what(?:\'s|\s+is)?\s+|calculate\s+|solve\s+)?([0-9\.\s\+\-\*\/\(\)\^\%]+)\??$", clean, re.IGNORECASE)
+    if m:
+        expr = m.group(1).strip()
+        if any(op in expr for op in ["+", "-", "*", "/", "^", "%"]) and re.search(r"\d", expr):
+            try:
+                python_expr = expr.replace("^", "**")
+                tree = ast.parse(python_expr, mode="eval")
+
+                def _eval(node):
+                    if isinstance(node, ast.Expression):
+                        return _eval(node.body)
+                    elif isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                        return node.value
+                    elif isinstance(node, ast.BinOp) and type(node.op) in MATH_OPS:
+                        left = _eval(node.left)
+                        right = _eval(node.right)
+                        return MATH_OPS[type(node.op)](left, right)
+                    elif isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+                        val = _eval(node.operand)
+                        return -val if isinstance(node.op, ast.USub) else val
+                    raise ValueError("Unsafe node")
+
+                ans = _eval(tree)
+                if isinstance(ans, float) and ans.is_integer():
+                    ans = int(ans)
+                return {"expr": expr, "ans": ans}
+            except Exception:
+                return None
+    return None
+
 
 
 INTENT_CATEGORIES = [
@@ -33,6 +82,7 @@ INTENT_CATEGORIES = [
     "PLANNING_REQUEST",
     "INFORMATION_REQUEST",  # Maintained as compatible alias
     "MEMORY_REQUEST",
+    "OUT_OF_SCOPE",
 ]
 
 
@@ -187,6 +237,10 @@ def classify_intent_heuristic(user_text: str) -> str:
     if any(k in lower for k in ["remember that", "what name should you call me", "what should you call me", "what is my preferred name", "view memory"]):
         return "MEMORY_REQUEST"
 
+    # Arithmetic expressions (2+2, etc.) are handled as direct conversation
+    if evaluate_math_expression(user_text) is not None:
+        return "GENERAL_CONVERSATION"
+
     # PRIORITY 9: General Conversation (Greetings, Identity, Casual)
     if any(k in lower for k in [
         "what is your name", "what's your name", "who are you",
@@ -198,7 +252,62 @@ def classify_intent_heuristic(user_text: str) -> str:
     ]):
         return "GENERAL_CONVERSATION"
 
+    # Out of scope query check
+    if is_out_of_scope(user_text):
+        return "OUT_OF_SCOPE"
+
     return "GENERAL_CONVERSATION"
+
+
+def is_out_of_scope(user_text: str) -> bool:
+    """Detect whether user input is clearly outside the scope of mental wellness, study support, and medical guidance."""
+    lower = user_text.lower().strip()
+    if not lower:
+        return False
+
+    # If physical symptoms or medical query, it is IN scope
+    if is_physical_health_query(user_text):
+        return False
+
+    # Simple arithmetic is handled directly, not rejected
+    if evaluate_math_expression(user_text) is not None:
+        return False
+
+    # Standard wellness, mental health, emotional words, conversational check-ins, or tools are IN scope
+    wellness_keywords = [
+        "stress", "anxious", "anxiety", "feel", "feeling", "sad", "happy", "overwhelm",
+        "study", "exam", "college", "school", "breath", "breathing", "ground", "grounding",
+        "cope", "coping", "journal", "goal", "remember", "mindly", "hello", "hi", "hey",
+        "who are you", "what is your name", "what's your name", "how are you", "help",
+        "thank", "tired", "sleep", "insomnia", "headache", "pain", "hurt", "ache",
+        "medicine", "gale", "calm", "relax", "habit", "routine", "burnout", "lonely",
+        "scared", "fear", "panic", "worry", "worried", "crying", "depressed", "mental",
+        "health", "emotion", "thoughts", "unpack", "listen", "friend", "advice", "favorite"
+    ]
+    if any(k in lower for k in wellness_keywords):
+        return False
+
+    # Out of scope domain patterns
+    out_of_scope_patterns = [
+        # Coding & Software Development
+        r"\b(?:python|javascript|typescript|c\+\+|java|html|css|sql|react|angular|vue|docker|kubernetes|git\s+push|api\s+endpoint|algorithm|debug\s+code|write\s+a\s+script|regex|function\s*\(|class\s+\w+:|import\s+\w+|write\s+code)\b",
+        # Cryptocurrency, finance, trading, stock market
+        r"\b(?:crypto|bitcoin|ethereum|dogecoin|stock\s+market|forex|day\s+trading|investing\s+in|mutual\s+fund|share\s+price|cryptocurrency|buy\s+stocks)\b",
+        # Automotive, mechanical, electrical
+        r"\b(?:car\s+engine|transmission|spark\s+plug|oil\s+change|tire\s+pressure|brake\s+pads|fix\s+my\s+car|cylinder\s+head)\b",
+        # Advanced math calculation / complex algebra / calculus
+        r"\b(?:solve\s+equation|integral\s+of|derivative\s+of|matrix\s+multiplication|eigenvalues|quadratic\s+formula|calculus)\b",
+        # Video game cheats, betting, sports match scores
+        r"\b(?:cheat\s+codes|gta\s+5\s+cheats|fifa\s+coins|fortnite\s+vbucks|cricket\s+score|nba\s+score|premier\s+league\s+table|betting\s+odds)\b",
+        # Legal litigation
+        r"\b(?:legal\s+contract|sue\s+my|lawsuit|attorney\s+fees|court\s+hearing)\b",
+        # General non-medical trivia / geopolitics
+        r"\b(?:capital of|election results|weather in|who is the president|stock price)\b",
+    ]
+    for pat in out_of_scope_patterns:
+        if re.search(pat, lower):
+            return True
+    return False
 
 
 INTENT_PROMPT = """You are an intent classification component for Mindly, a mental wellness support assistant.
@@ -214,9 +323,11 @@ Classify the user's message into EXACTLY ONE of the following categories:
 - PLANNING_REQUEST (asking for help organizing or study schedule routines)
 - MEMORY_REQUEST (asking to remember a personal preference or asking what name to call the user)
 - CRISIS_RELATED (mentions of self-harm, suicidal ideation, or acute danger)
+- OUT_OF_SCOPE (questions completely unrelated to wellness, mental health, student wellbeing, or medical guidance, such as coding, stock market, sports scores, mechanical repair)
 
 Important rule: If the message describes a physical health symptom (such as stomach pain, headache, nausea, back pain) even if stress is mentioned, classify it as HEALTH_INFORMATION.
 If acute or severe red-flag symptoms are present, classify it as URGENT_HEALTH.
+If the query is clearly an out-of-scope non-wellness/non-medical inquiry, classify it as OUT_OF_SCOPE.
 
 Respond with ONLY the exact category name. Nothing else.
 """
@@ -249,12 +360,21 @@ def classify_intent(user_text: str, llm=None) -> str:
     if is_physical_health_query(user_text):
         return "HEALTH_INFORMATION"
 
+    # Arithmetic expressions are routed directly
+    if evaluate_math_expression(user_text) is not None:
+        return "GENERAL_CONVERSATION"
+
+    # Check for clearly out-of-scope / unnecessary queries before passing to LLM
+    if is_out_of_scope(user_text):
+        return "OUT_OF_SCOPE"
+
     # Stage 1 (Cont): Explicit Tool Triggers & Conversational Filters
     heuristic_intent = classify_intent_heuristic(user_text)
     if heuristic_intent in [
         "JOURNAL_REQUEST", "GOAL_REQUEST", "PLANNING_REQUEST",
         "MEMORY_REQUEST", "GROUNDING_REQUEST", "COPING_REQUEST",
-        "HEALTH_INFORMATION", "URGENT_HEALTH", "CRISIS_RELATED"
+        "HEALTH_INFORMATION", "URGENT_HEALTH", "CRISIS_RELATED",
+        "OUT_OF_SCOPE",
     ]:
         return heuristic_intent
 
@@ -277,3 +397,4 @@ def classify_intent(user_text: str, llm=None) -> str:
             pass
 
     return heuristic_intent
+

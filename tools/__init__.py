@@ -1,4 +1,4 @@
-"""Tools package for Mindly Lab 2 dynamic orchestration."""
+"""Tools package for Mindly dynamic orchestration."""
 
 from tools.coping import generate_coping_strategies
 from tools.direct_response import generate_direct_response
