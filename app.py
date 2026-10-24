@@ -31,7 +31,16 @@ from rag.vectorstore import vector_store
 from agent.safety import assess_safety, screen_urgent_medical
 from agent.intent import is_out_of_scope, evaluate_math_expression
 from tools.voice import synthesize_speech, transcribe_audio_file
-from tools.rag import get_suggested_followups
+try:
+    from tools.rag import get_suggested_followups
+except ImportError:
+    def get_suggested_followups(query: str, condition_title: Optional[str] = None):
+        return [
+            "What dietary adjustments help manage this condition?",
+            "What are the primary warning signs to monitor?",
+            "What immediate home comfort steps provide relief?",
+            "What questions should I ask my healthcare provider about this?"
+        ]
 
 # ------------------------------------------------------------------------------
 # STREAMLIT PAGE CONFIGURATION
