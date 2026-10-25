@@ -54,3 +54,8 @@ Desktop.ini
 # Audio cache / generated files
 data/audio/*.wav
 *.wav
+
+# Binaries & Tunnels
+cloudflared.exe
+*.exe
+
