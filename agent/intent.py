@@ -198,6 +198,10 @@ def is_physical_health_query(user_text: str) -> bool:
     ):
         return True
 
+    # 10. Medical or clinical literature inquiries
+    if re.search(r"\b(?:medical\s+literature|clinical\s+literature|clinical\s+causes?)\b", lower):
+        return True
+
     # 10. Dynamic Anatomical complaints ("my back hurts", "burning in my chest", etc.)
     if re.search(
         r"\b(?:my\s+)?(?:stomach|abdomen|gut|belly|tummy|chest|head|throat|back|neck|shoulder|knee|joints?|eyes?|ears?|lungs?|bowels?|muscles?|skin|esophagus)\s+(?:hurts?|aches?|pains?|is\s+burning|is\s+upset|is\s+aching|is\s+cramping|is\s+swollen|is\s+stiff|is\s+paining|is\s+tight)\b",
@@ -334,29 +338,38 @@ def classify_intent_heuristic(user_text: str) -> str:
 
 
 INTENT_PROMPT = """Classify the user input into exactly ONE category:
-HEALTH_INFORMATION: physical diseases, illnesses, medical conditions, acne, skin issues, bodily pain, headaches, fever, indigestion, hypertension, asthma, diabetes.
+HEALTH_INFORMATION: physical diseases, illnesses, medical conditions, acne, skin issues, bodily pain, shoulder pain, back pain, joint pain, headaches, fever, indigestion, hypertension, asthma, diabetes.
 EMOTIONAL_SUPPORT: mental wellness, emotions, feelings, jealousy, sadness, loneliness, heartbreak, feeling down, relationship concerns.
-COPING_REQUEST: practical coping strategies, stress management, study advice, burnout handling, ways to manage pressure.
-GROUNDING_REQUEST: breathing exercises, calming down, sensory grounding techniques, panic relief.
+COPING_REQUEST: practical coping strategies, stress management, study advice, burnout handling, ways to manage pressure, questions asking "what should I do", "how can I cope", "ways to handle".
+GROUNDING_REQUEST: breathing exercises, calming down, sensory grounding techniques, panic relief ("need help calming down", "help me breathe").
+MEMORY_REQUEST: remembering user's name, user preferences, recalling stored memories, questions like "what did I ask you to remember", "remember that...".
 JOURNAL_REQUEST: personal reflection journaling, saving entries to journal, viewing journal.
 GOAL_REQUEST: setting, tracking, or viewing goals and habits.
 PLANNING_REQUEST: study schedules, time management plans, organizing routines.
 THERAPIST_REQUEST: finding licensed human therapists, psychologists, counselors, or mental health clinics.
 OUT_OF_SCOPE: computer programming, coding, math calculations, stock market, non-wellness topics.
-GENERAL_CONVERSATION: greetings, casual talk, questions about your identity or abilities.
+GENERAL_CONVERSATION: greetings, casual talk, jokes, telling interesting facts, questions about your identity or abilities.
 
 Examples:
+"how to handle shoulder pain" -> HEALTH_INFORMATION
 "how to handle skin acnes" -> HEALTH_INFORMATION
 "what causes back pain" -> HEALTH_INFORMATION
 "how to stop being jealous" -> EMOTIONAL_SUPPORT
 "i feel sad and lonely" -> EMOTIONAL_SUPPORT
+"what should I do when I feel emotionally exhausted?" -> COPING_REQUEST
 "how can i manage stress" -> COPING_REQUEST
 "ways to deal with burnout" -> COPING_REQUEST
 "teach me box breathing" -> GROUNDING_REQUEST
+"I feel anxious and need help calming down." -> GROUNDING_REQUEST
 "help me calm down" -> GROUNDING_REQUEST
+"remember that I prefer being called Alex" -> MEMORY_REQUEST
+"what did I ask you to remember?" -> MEMORY_REQUEST
+"what is my preferred name?" -> MEMORY_REQUEST
 "write this in my journal" -> JOURNAL_REQUEST
 "set a goal to exercise" -> GOAL_REQUEST
 "help me plan my study schedule" -> PLANNING_REQUEST
+"tell me a joke" -> GENERAL_CONVERSATION
+"tell me something interesting" -> GENERAL_CONVERSATION
 "find a therapist near me" -> THERAPIST_REQUEST
 "write code in python" -> OUT_OF_SCOPE
 "hello how are you" -> GENERAL_CONVERSATION
@@ -384,16 +397,30 @@ def classify_intent(user_text: str, llm=None) -> str:
     if safety["safety_status"] == "EDUCATIONAL_OR_THIRD_PERSON":
         return "CRISIS_RELATED"
 
-    # Math expressions (2+3, 2+2, etc.) are strictly OUT_OF_SCOPE
-    if evaluate_math_expression(user_text) is not None:
+    lower_clean = clean.lower()
+
+    # Math expressions (2+3, 2+2, etc.) and non-wellness topics (coding, stocks, etc.) are strictly OUT_OF_SCOPE
+    if evaluate_math_expression(user_text) is not None or is_out_of_scope(user_text):
         return "OUT_OF_SCOPE"
 
     # Explicit slash commands (/journal, /goal)
-    lower_clean = clean.lower()
     if lower_clean.startswith("/journal"):
         return "JOURNAL_REQUEST"
     if lower_clean.startswith("/goal"):
         return "GOAL_REQUEST"
+
+    # Conversational greetings, identity & chit-chat queries ("hello mindly", "thank you", "who are you")
+    if any(q in lower_clean for q in [
+        "what is your name", "what's your name", "who are you", "tell me about yourself",
+        "tell me something about yourself", "tell me a joke", "tell me something interesting",
+        "hello mindly", "hi mindly", "hey mindly", "thank you", "thanks", "nice to meet you",
+        "good morning", "good evening", "good afternoon"
+    ]) or lower_clean in ["hello", "hi", "hey", "how are you", "how are you doing", "how are you doing today?"]:
+        return "GENERAL_CONVERSATION"
+
+    # Stage 1 (Cont): Physical health symptoms must not be routed to mindfulness/emotional simply because of scared/fear words
+    if is_physical_health_query(user_text):
+        return "HEALTH_INFORMATION"
 
     # Stage 2: LET THE AI DECIDE INTENT DYNAMICALLY
     effective_llm = llm

@@ -42,6 +42,11 @@ class Settings:
             self.ollama_temperature = 0.7
 
         try:
+            self.ollama_max_tokens: int = int(os.getenv("OLLAMA_MAX_TOKENS", "180"))
+        except ValueError:
+            self.ollama_max_tokens = 180
+
+        try:
             self.max_eval_retries: int = int(os.getenv("MAX_EVAL_RETRIES", "2"))
         except ValueError:
             self.max_eval_retries = 2

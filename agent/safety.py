@@ -230,7 +230,8 @@ def screen_urgent_medical(user_text: str) -> Dict[str, Any]:
     if any(k in lower for k in [
         "severe or worsening", "severe worsening", "rapidly worsening",
         "unbearable pain", "excruciating pain", "excruciating", "severe abdominal pain",
-        "severe chest pain", "worsening abdominal"
+        "severe stomach pain", "severe belly pain", "pain in my stomach and feel",
+        "severe chest pain", "worsening abdominal", "severe pain"
     ]):
         flagged.append("severe or worsening pain")
 
@@ -246,7 +247,8 @@ def screen_urgent_medical(user_text: str) -> Dict[str, Any]:
         flagged.append("chest pain or tightness")
 
     if any(k in lower for k in [
-        "fainting", "fainted", "pass out", "passed out", "syncope", "loss of consciousness", "blacking out"
+        "fainting", "fainted", "feel faint", "feeling faint", "felt faint", "pass out", "passed out",
+        "syncope", "loss of consciousness", "blacking out", "about to faint"
     ]):
         flagged.append("fainting or loss of consciousness")
 

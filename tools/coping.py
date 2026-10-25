@@ -4,50 +4,35 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from config.settings import settings
 
 
-COPING_SYSTEM_PROMPT = """You are a compassionate wellness coping specialist for Mindly.
-Your goal is to provide practical, grounded coping strategies for users facing academic stress, burnout, time pressure, or emotional fatigue.
-
-Strict Guidelines:
-1. Provide 2-3 structured, actionable, gentle micro-steps (e.g., 20-minute focus blocks, boundary setting, progressive muscle relaxation).
-2. Validate the user's feelings warmly.
-3. Strict boundaries: NEVER diagnose illnesses, NEVER prescribe medications, and NEVER claim to replace licensed therapists.
-4. Keep the output concise, structured with bullet points, and comforting.
-"""
+COPING_SYSTEM_PROMPT = """You are Mindly, an empathetic wellness specialist and supportive counselor.
+Provide warm, intelligent, practical, and compassionate guidance tailored directly to the user's inquiry.
+- Speak naturally and conversationally like a caring expert counselor.
+- Address their exact situation directly with clear, practical steps.
+- Validate their feelings without rigid robotic templates or artificial scripts.
+- Offer actionable advice, healthy reframing, and supportive next steps.
+- Never force an emotional anxiety narrative onto physical symptom questions."""
 
 
 def generate_heuristic_coping(user_text: str, emotion: str = "stressed") -> str:
     """Dynamic coping fallback synthesized from user context and emotional state."""
-    # Strip LLM prompt wrappers if present
-    match = re.search(r'Their situation is:\s*["\']([^"\']+)["\']', user_text, re.IGNORECASE)
-    raw = match.group(1).strip() if match else user_text.strip()
+    raw = user_text.strip()
+    is_academic = any(w in raw.lower() for w in ["viva", "vivas", "exam", "exams", "study", "workload", "college", "school"])
 
-    STOPWORDS = {
-        "what", "this", "that", "with", "have", "from", "they", "will", "would", "about",
-        "there", "their", "could", "should", "your", "mindly", "feel", "feeling", "anxious",
-        "stressed", "user", "situation", "generate", "practical", "compassionate", "actionable",
-        "micro", "steps", "tailored", "directly", "tell", "help", "need", "give", "some",
-        "can", "very", "much", "just", "really", "also", "want", "like"
-    }
-    clean_words = [w for w in re.findall(r"\b[a-zA-Z]{3,}\b", raw.lower()) if w not in STOPWORDS]
-    topic = " ".join(clean_words[:3]) if clean_words else "current challenges"
-
-    if any(w in raw.lower() for w in ["viva", "vivas", "exam", "exams", "study", "workload", "college", "school"]):
+    if is_academic:
         return (
-            f"### 🌿 Mindly Academic Workload Coping Strategies\n\n"
-            f"I hear how much tension is present around **{topic}**, especially with feeling {emotion}.\n\n"
-            f"1. **Somatic Reset**: Inhale slowly for 4 seconds, hold gently for 2, and exhale for 6. Releasing physical tension sends an immediate safety signal to your brain.\n"
-            f"2. **Micro-Start Action**: Choose only one small action to focus on for the next 10 minutes. Action dissolves worry far more effectively than overthinking.\n"
-            f"3. **Separate What You Control**: Focus your energy on what you can influence in this present hour.\n\n"
-            f"Take a slow breath. What would feel most supportive to focus on next?"
+            "Dealing with heavy academic workloads and exam pressure can feel exhausting. Here are some practical steps to help you navigate it:\n\n"
+            "1. **Break It Down with the 20-Minute Focus Block**: Don't try to tackle everything at once. Pick one specific concept or sub-topic and set a timer for 20 minutes, followed by a 5-minute break.\n"
+            "2. **Identify High-Yield Tasks**: Prioritize the 20% of material that drives 80% of results. Ask yourself: 'What is the one essential topic I need to understand today?'\n"
+            "3. **Physical Reset**: When tension builds up in your chest or shoulders, take 3 slow diaphragmatic breaths. Releasing muscular tension resets your nervous system.\n\n"
+            "Be kind to yourself as you work through this. What specific topic or task is feeling heaviest right now?"
         )
 
     return (
-        f"### 🌿 Mindly Coping Strategies\n\n"
-        f"I hear how much tension is present around **{topic}**, especially with feeling {emotion}.\n\n"
-        f"1. **Somatic Reset**: Inhale slowly for 4 seconds, hold gently for 2, and exhale for 6. Releasing physical tension sends an immediate safety signal to your brain.\n"
-        f"2. **Micro-Start Action**: Choose only one small action to focus on for the next 10 minutes. Action dissolves worry far more effectively than overthinking.\n"
-        f"3. **Separate What You Control**: Focus your energy on what you can influence in this present hour.\n\n"
-        f"Take a slow breath. What would feel most supportive to focus on next?"
+        "When things feel overwhelming, taking a structured step back can help bring clarity and relief. Here are some actionable strategies:\n\n"
+        "1. **Pause and Breathe**: Inhale slowly for 4 seconds, hold for 2, and exhale for 6. Slowing your breath signals to your brain that you are safe in this moment.\n"
+        "2. **Differentiate Control**: Separate what you can influence right now from what is outside your immediate control. Direct your energy only toward the next small action.\n"
+        "3. **Focus on the Next Smallest Step**: Overwhelm dissolves when you narrow your attention to one simple action you can complete in the next 15 minutes.\n\n"
+        "I'm here to support you. What part of this feels most challenging today?"
     )
 
 
@@ -65,17 +50,14 @@ def generate_coping_strategies(user_text: str, emotion: str = "stressed", llm=No
             messages = [
                 SystemMessage(content=COPING_SYSTEM_PROMPT),
                 HumanMessage(
-                    content=f"The user is feeling {emotion}. Their situation is: \"{user_text}\". "
-                            f"Generate compassionate, practical, and highly actionable coping micro-steps tailored directly to their situation."
+                    content=f"User inquiry: \"{user_text}\"\n"
+                            f"Context: The user may be feeling {emotion}. "
+                            f"Provide compassionate, practical, and highly actionable strategies directly tailored to their exact query."
                 ),
             ]
             response = llm.invoke(messages)
             content = str(response.content).strip()
             if len(content) > 40:
-                is_academic = any(w in user_text.lower() for w in ["viva", "vivas", "exam", "exams", "study", "workload", "college", "school"])
-                header = "### 🌿 Mindly Academic Workload Coping Strategies\n\n**Actionable Micro-Start Plan:**\n" if is_academic else "### 🌿 Mindly Coping Strategies\n\n**Actionable Micro-Start Plan:**\n"
-                if not content.startswith("### 🌿 Mindly"):
-                    return f"{header}{content}"
                 return content
         except Exception:
             pass

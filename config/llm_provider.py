@@ -208,11 +208,13 @@ class UniversalChatModel:
         base_url: Optional[str] = None,
         temperature: Optional[float] = None,
         provider: Optional[str] = None,
+        max_tokens: Optional[int] = None,
     ) -> None:
         self.model = model or settings.ollama_model
         self.base_url = base_url or settings.ollama_base_url
         self.temperature = temperature if temperature is not None else settings.ollama_temperature
         self.provider = provider or getattr(settings, "llm_provider", "auto")
+        self.max_tokens = max_tokens or getattr(settings, "ollama_max_tokens", 450)
 
     def invoke(self, messages: List[BaseMessage]) -> AIMessage:
         """Invoke LLM across available providers with automatic graceful fallback."""
@@ -260,7 +262,7 @@ class UniversalChatModel:
             except Exception as e:
                 print(f"[Cloud LLM Exception]: {e}")
 
-        # 2. Check Local Ollama via fast native HTTP /api/chat with bounded token count
+        # 2. Check Local Ollama via fast native HTTP /api/chat with reasonable bounded token count
         health = settings.check_ollama_health()
         if health["is_running"]:
             try:
@@ -281,7 +283,7 @@ class UniversalChatModel:
                         "stream": False,
                         "options": {
                             "temperature": self.temperature,
-                            "num_predict": 110,  # Bound generation tokens to ~80-100 words for fast 15-20s CPU execution
+                            "num_predict": self.max_tokens,  # Configurable token count prevents abrupt truncations
                         },
                     },
                     timeout=75.0,
@@ -342,7 +344,7 @@ class UniversalChatModel:
             "model": model_name,
             "messages": payload_msgs,
             "temperature": self.temperature,
-            "max_tokens": 400,
+            "max_tokens": self.max_tokens,
         }
 
         try:
@@ -361,12 +363,14 @@ def get_universal_llm(
     model: Optional[str] = None,
     base_url: Optional[str] = None,
     temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
 ) -> UniversalChatModel:
     """Return configured UniversalChatModel instance."""
     return UniversalChatModel(
         model=model,
         base_url=base_url,
         temperature=temperature,
+        max_tokens=max_tokens,
     )
 
 
