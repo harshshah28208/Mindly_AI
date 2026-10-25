@@ -31,11 +31,21 @@ def generate_heuristic_coping(user_text: str, emotion: str = "stressed") -> str:
     clean_words = [w for w in re.findall(r"\b[a-zA-Z]{3,}\b", raw.lower()) if w not in STOPWORDS]
     topic = " ".join(clean_words[:3]) if clean_words else "current challenges"
 
+    if any(w in raw.lower() for w in ["viva", "vivas", "exam", "exams", "study", "workload", "college", "school"]):
+        return (
+            f"### 🌿 Mindly Academic Workload Coping Strategies\n\n"
+            f"I hear how much tension is present around **{topic}**, especially with feeling {emotion}.\n\n"
+            f"1. **Somatic Reset**: Inhale slowly for 4 seconds, hold gently for 2, and exhale for 6. Releasing physical tension sends an immediate safety signal to your brain.\n"
+            f"2. **Micro-Start Action**: Choose only one small action to focus on for the next 10 minutes. Action dissolves worry far more effectively than overthinking.\n"
+            f"3. **Separate What You Control**: Focus your energy on what you can influence in this present hour.\n\n"
+            f"Take a slow breath. What would feel most supportive to focus on next?"
+        )
+
     return (
+        f"### 🌿 Mindly Coping Strategies\n\n"
         f"I hear how much tension is present around **{topic}**, especially with feeling {emotion}.\n\n"
-        f"Here are three grounded steps you can take right now:\n\n"
         f"1. **Somatic Reset**: Inhale slowly for 4 seconds, hold gently for 2, and exhale for 6. Releasing physical tension sends an immediate safety signal to your brain.\n"
-        f"2. **Single Micro-Step**: Choose only one small action to focus on for the next 10 minutes. Action dissolves worry far more effectively than overthinking.\n"
+        f"2. **Micro-Start Action**: Choose only one small action to focus on for the next 10 minutes. Action dissolves worry far more effectively than overthinking.\n"
         f"3. **Separate What You Control**: Focus your energy on what you can influence in this present hour.\n\n"
         f"Take a slow breath. What would feel most supportive to focus on next?"
     )
@@ -62,6 +72,10 @@ def generate_coping_strategies(user_text: str, emotion: str = "stressed", llm=No
             response = llm.invoke(messages)
             content = str(response.content).strip()
             if len(content) > 40:
+                is_academic = any(w in user_text.lower() for w in ["viva", "vivas", "exam", "exams", "study", "workload", "college", "school"])
+                header = "### 🌿 Mindly Academic Workload Coping Strategies\n\n**Actionable Micro-Start Plan:**\n" if is_academic else "### 🌿 Mindly Coping Strategies\n\n**Actionable Micro-Start Plan:**\n"
+                if not content.startswith("### 🌿 Mindly"):
+                    return f"{header}{content}"
                 return content
         except Exception:
             pass

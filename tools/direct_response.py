@@ -110,6 +110,8 @@ def generate_direct_response(
             response = llm.invoke(model_input)
             content = str(response.content).strip()
             if content and len(content) > 10:
+                if bool(re.search(r"^\s*(?:hello|hi|hey|greetings)\b", user_text.lower())) and "mindly" not in content.lower():
+                    content = f"Hello! I am Mindly, your mental-wellness companion. {content}"
                 return content
         except Exception:
             pass
