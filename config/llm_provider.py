@@ -173,13 +173,13 @@ class UniversalChatModel:
                 if not api_key:
                     if hasattr(st, "session_state") and st.session_state.get("cloud_api_key"):
                         api_key = str(st.session_state["cloud_api_key"]).strip()
-                if not api_key and hasattr(st, "secrets"):
-                    if "GROQ_API_KEY" in st.secrets:
-                        api_key = str(st.secrets["GROQ_API_KEY"]).strip()
-                        if not openai_url:
+                if not api_key:
+                    try:
+                        api_key = str(st.secrets.get("GROQ_API_KEY", "") or st.secrets.get("OPENAI_API_KEY", "")).strip()
+                        if api_key.startswith("gsk_") and not openai_url:
                             openai_url = "https://api.groq.com/openai/v1"
-                    elif "OPENAI_API_KEY" in st.secrets:
-                        api_key = str(st.secrets["OPENAI_API_KEY"]).strip()
+                    except Exception:
+                        pass
         except Exception:
             pass
 

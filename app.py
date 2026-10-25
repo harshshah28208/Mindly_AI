@@ -143,8 +143,11 @@ with st.sidebar:
 
     health = settings.check_ollama_health()
     cloud_key = st.session_state.get("cloud_api_key", os.getenv("GROQ_API_KEY", "") or os.getenv("OPENAI_API_KEY", ""))
-    if not cloud_key and hasattr(st, "secrets"):
-        cloud_key = st.secrets.get("GROQ_API_KEY", "") or st.secrets.get("OPENAI_API_KEY", "")
+    if not cloud_key:
+        try:
+            cloud_key = st.secrets.get("GROQ_API_KEY", "") or st.secrets.get("OPENAI_API_KEY", "")
+        except Exception:
+            cloud_key = ""
 
     has_api = bool(cloud_key)
 
