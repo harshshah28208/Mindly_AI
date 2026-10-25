@@ -12,6 +12,7 @@ An autonomous, multimodal multi-agent architecture built on LangGraph:
 import os
 import sys
 import uuid
+import requests
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
