@@ -22,7 +22,8 @@ Structure your educational response with these clear sections:
 - 🛡️ **Proper Plan: How to Cure & Prevent (Long-Term Management & Clinical Therapies)**: Rehabilitation, dietary adjustments, long-term lifestyle habits, and standard clinical therapies.
 - ⚠️ **Red-Flag Warning Signs (When to Seek Emergency Care)**: Symptoms requiring prompt physician evaluation.
 
-Always deliver the clinical and educational information clearly and authoritatively from textbook science without generic refusal disclaimers. Place citations at the very bottom.
+Always deliver the clinical and educational information clearly and authoritatively from textbook science without generic refusal disclaimers.
+Keep each section concise (1-2 direct sentences or bullet points) so the explanation is clear, complete, and focused. Place citations at the very bottom.
 """
 
 
@@ -261,7 +262,7 @@ def synthesize_from_chunks_dynamically(query: str, chunks: List[Dict[str, Any]])
 def execute_rag_query(
     query: str,
     llm=None,
-    top_k: int = 3,
+    top_k: int = 2,
     detected_emotion: Optional[str] = None,
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """Execute Gale Encyclopedia of Medicine RAG pipeline.
@@ -309,8 +310,6 @@ def execute_rag_query(
             from config.llm_provider import get_llm
             from config.settings import settings
             budget = settings.determine_token_budget(query, intent="HEALTH_INFORMATION")
-            # Clinical textbook synthesis requires adequate token budget for 5-part guide
-            budget = max(budget, 768)
             effective_llm = get_llm(max_tokens=budget)
         except Exception:
             pass

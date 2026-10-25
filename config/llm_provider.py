@@ -337,6 +337,13 @@ class UniversalChatModel:
                         role = "assistant"
                     payload_msgs.append({"role": role, "content": str(m.content)})
 
+                predict_tokens = self.max_tokens
+                # When running on local CPU, cap num_predict to fast limit (default 280 tokens = ~20-25 seconds)
+                # to guarantee every query completes quickly while preserving full, high-quality, non-truncated answers.
+                fast_limit = int(os.getenv("OLLAMA_FAST_TOKENS", "280"))
+                if os.getenv("FAST_LOCAL_INFERENCE", "true").lower() in ["true", "1"] and fast_limit > 0:
+                    predict_tokens = min(predict_tokens, fast_limit)
+
                 resp = requests.post(
                     f"{self.base_url}/api/chat",
                     json={
@@ -345,7 +352,8 @@ class UniversalChatModel:
                         "stream": False,
                         "options": {
                             "temperature": self.temperature,
-                            "num_predict": self.max_tokens,
+                            "num_predict": predict_tokens,
+                            "num_thread": 4,
                         },
                     },
                     timeout=85.0,
@@ -356,7 +364,7 @@ class UniversalChatModel:
                     done_reason = data.get("done_reason", "stop")
                     eval_count = data.get("eval_count", 0)
 
-                    is_length_limit = (done_reason == "length") or (eval_count > 0 and eval_count >= self.max_tokens)
+                    is_length_limit = (done_reason == "length") or (eval_count > 0 and eval_count >= predict_tokens)
                     is_abrupt_cutoff = False
                     if content and len(content) > 30:
                         if re.search(r"[,:;\-\(\[\{]\s*$", content) or re.search(r"\b(?:and|or|the|with|to|in|of|that|because|step|such\s+as)\s*$", content, re.IGNORECASE):
