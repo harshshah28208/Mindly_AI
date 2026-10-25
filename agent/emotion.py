@@ -74,7 +74,7 @@ Respond with ONLY the lowercase category name. Nothing else.
 
 
 def classify_emotion(user_text: str, llm=None) -> str:
-    """Classify user emotion using LLM if available, falling back to heuristics."""
+    """Classify user emotion using fast heuristics first, LLM for ambiguous fallback."""
     if not user_text.strip():
         return "neutral"
 
@@ -82,8 +82,12 @@ def classify_emotion(user_text: str, llm=None) -> str:
     if evaluate_math_expression(user_text) is not None:
         return "neutral"
 
-    if llm is not None:
+    # Fast heuristic check (avoids wasting CPU inference time on obvious words)
+    heuristic = classify_emotion_heuristic(user_text)
+    if heuristic != "neutral":
+        return heuristic
 
+    if llm is not None:
         try:
             messages = [
                 SystemMessage(content=EMOTION_PROMPT),
@@ -97,4 +101,4 @@ def classify_emotion(user_text: str, llm=None) -> str:
         except Exception:
             pass
 
-    return classify_emotion_heuristic(user_text)
+    return heuristic

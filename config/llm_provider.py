@@ -10,7 +10,8 @@ Provides seamless multi-backend model orchestration:
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any, Dict, List, Optional, Tuple
 import requests
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
@@ -148,6 +149,12 @@ class DynamicLocalResponseEngine:
 class UniversalChatModel:
     """Universal Chat Model wrapper supporting native Ollama HTTP, OpenAI-compatible APIs, and Dynamic Local Engine."""
 
+    last_metadata: Dict[str, Any] = {
+        "provider": "Dynamic Local Engine",
+        "model": "",
+        "latency": 0.0,
+    }
+
     def __init__(
         self,
         model: Optional[str] = None,
@@ -162,39 +169,49 @@ class UniversalChatModel:
 
     def invoke(self, messages: List[BaseMessage]) -> AIMessage:
         """Invoke LLM across available providers with automatic graceful fallback."""
+        t0 = time.time()
+
         # 1. Check if Cloud OpenAI/Groq API key is present (from env, session_state, or st.secrets)
-        api_key = os.getenv("OPENAI_API_KEY", "") or os.getenv("GROQ_API_KEY", "")
-        openai_url = os.getenv("OPENAI_BASE_URL", "")
+        api_key = os.getenv("OPENAI_API_KEY", "").strip() or os.getenv("GROQ_API_KEY", "").strip()
+        openai_url = os.getenv("OPENAI_BASE_URL", "").strip()
 
         try:
             import sys
             if "streamlit" in sys.modules:
                 st = sys.modules["streamlit"]
-                if not api_key:
-                    if hasattr(st, "session_state") and st.session_state.get("cloud_api_key"):
-                        api_key = str(st.session_state["cloud_api_key"]).strip()
+                if not api_key and hasattr(st, "session_state"):
+                    api_key = str(st.session_state.get("cloud_api_key") or st.session_state.get("cloud_key_input_field") or "").strip()
                 if not api_key:
                     try:
                         api_key = str(st.secrets.get("GROQ_API_KEY", "") or st.secrets.get("OPENAI_API_KEY", "")).strip()
-                        if api_key.startswith("gsk_") and not openai_url:
-                            openai_url = "https://api.groq.com/openai/v1"
                     except Exception:
                         pass
         except Exception:
             pass
 
         if api_key:
-            if api_key.startswith("gsk_") and not openai_url:
-                openai_url = "https://api.groq.com/openai/v1"
-            elif not openai_url and os.getenv("GROQ_API_KEY"):
-                openai_url = "https://api.groq.com/openai/v1"
+            if api_key.startswith("gsk_"):
+                openai_url = openai_url or "https://api.groq.com/openai/v1"
+                os.environ["GROQ_API_KEY"] = api_key
+            else:
+                os.environ["OPENAI_API_KEY"] = api_key
 
             try:
-                cloud_resp = self._invoke_openai_compatible(messages, api_key, openai_url)
+                cloud_resp, model_used = self._invoke_openai_compatible(messages, api_key, openai_url)
                 if cloud_resp:
-                    return AIMessage(content=cloud_resp)
-            except Exception:
-                pass
+                    dt = round(time.time() - t0, 2)
+                    provider_tag = "Groq" if ("groq" in (openai_url or "").lower() or api_key.startswith("gsk_")) else "OpenAI"
+                    UniversalChatModel.last_metadata = {
+                        "provider": provider_tag,
+                        "model": model_used,
+                        "latency": dt,
+                    }
+                    return AIMessage(
+                        content=cloud_resp,
+                        response_metadata=UniversalChatModel.last_metadata,
+                    )
+            except Exception as e:
+                print(f"[Cloud LLM Exception]: {e}")
 
         # 2. Check Local Ollama via fast native HTTP /api/chat with bounded token count
         health = settings.check_ollama_health()
@@ -217,26 +234,49 @@ class UniversalChatModel:
                         "stream": False,
                         "options": {
                             "temperature": self.temperature,
-                            "num_predict": 250,  # Bound generation tokens for fast CPU execution
+                            "num_predict": 110,  # Bound generation tokens to ~80-100 words for fast 15-20s CPU execution
                         },
                     },
-                    timeout=45.0,
+                    timeout=75.0,
                 )
                 if resp.status_code == 200:
                     data = resp.json()
                     content = data.get("message", {}).get("content", "").strip()
                     if content:
-                        return AIMessage(content=content)
-            except Exception:
-                pass
+                        dt = round(time.time() - t0, 2)
+                        UniversalChatModel.last_metadata = {
+                            "provider": "Local Ollama",
+                            "model": self.model,
+                            "latency": dt,
+                        }
+                        return AIMessage(
+                            content=content,
+                            response_metadata=UniversalChatModel.last_metadata,
+                        )
+            except Exception as e:
+                print(f"[Ollama Error]: {e}")
 
         # 3. Dynamic Smart Local Engine (Zero dependency, instant, contextual fallback)
         dynamic_text = DynamicLocalResponseEngine.generate(messages)
-        return AIMessage(content=dynamic_text)
+        dt = round(time.time() - t0, 2)
+        UniversalChatModel.last_metadata = {
+            "provider": "Dynamic Local Engine",
+            "model": "rule-synthesis",
+            "latency": dt,
+        }
+        return AIMessage(
+            content=dynamic_text,
+            response_metadata=UniversalChatModel.last_metadata,
+        )
 
-    def _invoke_openai_compatible(self, messages: List[BaseMessage], api_key: str, base_url: str) -> Optional[str]:
+    def _invoke_openai_compatible(self, messages: List[BaseMessage], api_key: str, base_url: str) -> Tuple[Optional[str], str]:
         target_url = (base_url or "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
-        model_name = os.getenv("OPENAI_MODEL") or ("llama-3.3-70b-versatile" if "groq" in target_url else "gpt-4o-mini")
+        is_groq = "groq" in target_url.lower() or api_key.startswith("gsk_")
+        if is_groq:
+            target_url = "https://api.groq.com/openai/v1/chat/completions"
+            model_name = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        else:
+            model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
         payload_msgs = []
         for m in messages:
@@ -258,11 +298,16 @@ class UniversalChatModel:
             "max_tokens": 400,
         }
 
-        res = requests.post(target_url, json=body, headers=headers, timeout=20.0)
-        if res.status_code == 200:
-            data = res.json()
-            return data["choices"][0]["message"]["content"]
-        return None
+        try:
+            res = requests.post(target_url, json=body, headers=headers, timeout=20.0)
+            if res.status_code == 200:
+                data = res.json()
+                return data["choices"][0]["message"]["content"], model_name
+            else:
+                print(f"[Cloud LLM HTTP {res.status_code}]: {res.text[:200]}")
+        except Exception as exc:
+            print(f"[Cloud LLM Request Error]: {exc}")
+        return None, model_name
 
 
 def get_universal_llm(

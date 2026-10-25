@@ -628,6 +628,12 @@ def send_message(
 
     is_high_risk = result.get("risk_level") == "HIGH"
 
+    from config.llm_provider import UniversalChatModel
+    meta = UniversalChatModel.last_metadata or {}
+    provider_name = meta.get("provider", "Dynamic Local Engine")
+    model_name = meta.get("model", "")
+    latency = meta.get("latency", 0.0)
+
     return {
         "response": final_resp,
         "intent": result.get("detected_intent") or ("CRISIS_RELATED" if is_high_risk else "GENERAL_CONVERSATION"),
@@ -645,4 +651,7 @@ def send_message(
         "escalation": result.get("escalation_status"),
         "emergency_call": result.get("emergency_call"),
         "vision_result": result.get("vision_result"),
+        "llm_provider": provider_name,
+        "llm_model": model_name,
+        "latency": latency,
     }
