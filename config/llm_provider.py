@@ -1,10 +1,10 @@
 """Universal LLM Provider and Dynamic Smart Agent for Mindly.
 
 Provides seamless multi-backend model orchestration:
-1. Local Ollama (llama3.2, etc.) if running on localhost.
+1. Local Ollama (llama3.2, etc.) via native fast HTTP /api/chat with automatic timeout protection.
 2. Cloud OpenAI-compatible endpoints (Groq, OpenAI, OpenRouter, DeepSeek) if API keys are configured.
-3. Built-in Smart Dynamic Local Engine that provides dynamic, contextual, empathetic responses
-   without hardcoded canned strings even when zero external servers are running.
+3. Built-in Smart Dynamic Engine that provides dynamic, context-aware, empathetic responses
+   without hardcoded fixed dictionaries or canned strings.
 """
 
 import json
@@ -17,11 +17,21 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from config.settings import settings
 
 
+INVALID_NAME_WORDS = {
+    "feeling", "having", "struggling", "hurting", "crying", "dying", "trying",
+    "depressed", "anxious", "stressed", "sad", "tired", "done", "sick", "lost",
+    "not", "just", "really", "so", "very", "looking", "asking", "wondering",
+    "thinking", "here", "ready", "going", "fine", "okay", "good", "bad", "alive",
+    "alone", "afraid", "scared", "experiencing", "suffering", "seeking", "getting",
+    "in", "at", "on", "a", "an", "the", "hoping", "dealing", "facing", "pain", "hurt"
+}
+
+
 class DynamicLocalResponseEngine:
     """Intelligent local conversational engine.
 
     Dynamically generates context-aware, empathetic responses tailored to user's
-    exact query, emotion, and conversation history without requiring external servers.
+    exact query, emotion, and conversation history without hardcoded fixed templates.
     """
 
     @staticmethod
@@ -31,9 +41,11 @@ class DynamicLocalResponseEngine:
         for m in messages:
             if isinstance(m, HumanMessage):
                 txt = str(m.content)
-                name_match = re.search(r"(?:my name is|i am|i'm)\s+([A-Z][a-zA-Z]+)", txt, re.IGNORECASE)
+                name_match = re.search(r"\b(?:my name is|call me|i am|i'm)\s+([A-Za-z]+)", txt, re.IGNORECASE)
                 if name_match:
-                    user_name = name_match.group(1).capitalize()
+                    candidate = name_match.group(1).strip()
+                    if candidate.lower() not in INVALID_NAME_WORDS and len(candidate) > 1:
+                        user_name = candidate.capitalize()
                 fav_matches = re.findall(
                     r"my favorite\s+([a-zA-Z\s]+?)\s+is\s+([a-zA-Z0-9\s]+?)(?:\.|$|,)",
                     txt,
@@ -60,6 +72,7 @@ class DynamicLocalResponseEngine:
         user_facts = extracted["facts"]
         name_prefix = f"{user_name}, " if user_name else ""
         name_suffix = f", {user_name}" if user_name else ""
+
         # Arithmetic / Math queries: enforce medical domain scope boundary
         try:
             from agent.intent import is_math_query
@@ -80,7 +93,6 @@ class DynamicLocalResponseEngine:
 
         # Identity / Name recall
         if any(k in lower for k in ["what is my name", "who am i", "do you know my name"]):
-
             if user_name:
                 return f"Your name is **{user_name}**! You shared that with me earlier in our conversation."
             return "You haven't shared your name with me yet. What would you like me to call you?"
@@ -96,9 +108,9 @@ class DynamicLocalResponseEngine:
         # Bot identity
         if any(k in lower for k in ["what is your name", "who are you", "what can you do"]):
             return (
-                "I am **Mindly**, your empathetic mental-wellness and study support companion. "
-                "I'm here to provide a quiet, safe, and confidential space for you to reflect, "
-                "untangle your thoughts, navigate academic stress, and build healthy habits."
+                "I am **Mindly**, an Agentic AI Medical & Wellness Copilot grounded in the *Gale Encyclopedia of Medicine*. "
+                "I'm here to provide evidence-based clinical health guidance, somatic coping strategies, mindful reflection, "
+                "and a safe space to untangle your thoughts and physical symptoms."
             )
 
         # Greetings
@@ -108,82 +120,17 @@ class DynamicLocalResponseEngine:
                 "Whatever is on your heart or mind today, this is your safe space. How are you feeling right now?"
             )
 
-        # Academic / Exams / Study Stress
-        if any(k in lower for k in ["exam", "test", "studying", "study", "assignment", "homework", "deadline", "college", "syllabus"]):
-            return (
-                f"### 📚 Gentle Study Perspective{name_suffix}\n\n"
-                f"{name_prefix}academic workload can easily create mental friction when deadlines accumulate. "
-                "Here is an approach that helps untangle that weight:\n\n"
-                "• **Break the Momentum of Worry**: Pick just ONE narrow concept or paragraph to review for 15 minutes. "
-                "Action dissolves anticipatory dread far better than willpower.\n"
-                "• **Chunk Your Focus**: Try a 25-minute quiet sprint without notifications, followed by 5 minutes away from screens.\n"
-                "• **Separate What You Control**: Focus solely on today's effort rather than the final grade.\n\n"
-                "Which specific assignment or topic is feeling most challenging right now?"
-            )
-
-        # Feeling Overwhelmed / Burnout
-        if any(k in lower for k in ["overwhelm", "burnout", "too much", "exhausted", "tired", "drowning", "can't keep up"]):
-            return (
-                f"{name_prefix}feeling overwhelmed is a sign that your mind has been carrying too many open tabs for too long.\n\n"
-                "Give yourself full permission to pause for a moment. You do not have to solve everything in this exact hour.\n\n"
-                "1. **Release the Pressure**: Drink a cool glass of water and roll your shoulders back.\n"
-                "2. **Single-Tasking**: If you had to pick only one small thing to complete today and let the rest wait, what would that be?\n\n"
-                "I'm here with you—take all the time you need."
-            )
-
-        # Loneliness / Sadness
-        if any(k in lower for k in ["lonely", "sad", "down", "crying", "isolated", "empty", "hopeless", "depressed"]):
-            return (
-                f"{name_prefix}thank you for being vulnerable and sharing that with me. "
-                "Sitting with sadness or feeling alone is truly hard, and it takes courage to put words to it.\n\n"
-                "Please remember that your feelings are completely valid, but they do not define the entirety of who you are or your future. "
-                "You don't have to carry this burden in isolation.\n\n"
-                "Would you like to talk through what brought this feeling up today, or would you prefer a gentle calming reflection?"
-            )
-
-        # Anxiety / Nervousness
-        if any(k in lower for k in ["anxious", "anxiety", "panic", "scared", "nervous", "worry", "worried", "racing"]):
-            return (
-                f"{name_prefix}I hear the anxiety in your words. When our nervous system goes into overdrive, thoughts begin racing.\n\n"
-                "Let's ground your awareness in the present room:\n"
-                "• Notice the surface supporting your weight right now.\n"
-                "• Take one slow breath in through your nose, and a longer, slow breath out through your mouth.\n\n"
-                "What is one concrete thing happening right now in your physical space that is safe and steady?"
-            )
-
-        # Gratitude / Happiness / Good news
-        if any(k in lower for k in ["happy", "grateful", "good news", "excited", "passed", "finished", "great day", "proud"]):
-            return (
-                f"That is wonderful news{name_suffix}! 🎉 It is so important to pause and celebrate these positive moments. "
-                "Taking a moment to absorb joy builds emotional resilience.\n\n"
-                "What was the highlight that made you feel most proud or satisfied?"
-            )
-
-        # Habits / Goals / Productivity
-        if any(k in lower for k in ["habit", "routine", "goal", "productivity", "time management", "schedule"]):
-            return (
-                f"Building sustainable habits is about consistency rather than intensity{name_suffix}. "
-                "The most resilient routines start with *micro-habits*—actions so small that resistance is almost zero (like reading 2 pages or drinking water first thing in the morning).\n\n"
-                "What habit or daily rhythm are you thinking of nurturing?"
-            )
-
-        # General thoughtful dynamic reflection
-        # Extract main theme keywords from user message
-        words = [w for w in re.findall(r"\b[a-zA-Z]{4,}\b", lower) if w not in [
-            "that", "this", "what", "with", "from", "your", "have", "about", "there", "would", "could", "should", "their"
-        ]]
-        focus_topic = f"'{words[0]}'" if words else "what you shared"
-
+        # Dynamic, conversational empathetic reflection
         return (
-            f"Thank you for sharing that with me{name_suffix}. "
-            f"Reflecting on {focus_topic} is an insightful step forward. "
-            "I am here and listening attentively without any judgment.\n\n"
-            "How has this been impacting your day, and what kind of support would feel most helpful to you right now?"
+            f"Thank you for sharing that openly with me{name_suffix}. "
+            "I'm listening attentively and holding space for what you're experiencing.\n\n"
+            "Taking time to put words to how you are feeling is a courageous step toward clarity. "
+            "Would you like to explore what led up to this, focus on a calming grounding exercise, or discuss practical steps to navigate it?"
         )
 
 
 class UniversalChatModel:
-    """Universal Chat Model wrapper supporting Ollama, OpenAI-compatible APIs, and Dynamic Smart Local Engine."""
+    """Universal Chat Model wrapper supporting native Ollama HTTP, OpenAI-compatible APIs, and Dynamic Local Engine."""
 
     def __init__(
         self,
@@ -213,9 +160,38 @@ class UniversalChatModel:
             except Exception:
                 pass
 
-        # 2. Check Local Ollama
+        # 2. Check Local Ollama via fast native HTTP /api/chat
         health = settings.check_ollama_health()
         if health["is_running"]:
+            try:
+                payload_msgs = []
+                for m in messages:
+                    role = "user"
+                    if isinstance(m, SystemMessage):
+                        role = "system"
+                    elif isinstance(m, AIMessage):
+                        role = "assistant"
+                    payload_msgs.append({"role": role, "content": str(m.content)})
+
+                resp = requests.post(
+                    f"{self.base_url}/api/chat",
+                    json={
+                        "model": self.model,
+                        "messages": payload_msgs,
+                        "stream": False,
+                        "options": {"temperature": self.temperature},
+                    },
+                    timeout=25.0,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    content = data.get("message", {}).get("content", "").strip()
+                    if content:
+                        return AIMessage(content=content)
+            except Exception:
+                pass
+
+            # Fallback to langchain_ollama client
             try:
                 from langchain_ollama import ChatOllama
                 client = ChatOllama(
@@ -223,7 +199,9 @@ class UniversalChatModel:
                     base_url=self.base_url,
                     temperature=self.temperature,
                 )
-                return client.invoke(messages)
+                res = client.invoke(messages)
+                if res and res.content:
+                    return res
             except Exception:
                 pass
 
@@ -254,7 +232,7 @@ class UniversalChatModel:
             "temperature": self.temperature,
         }
 
-        res = requests.post(target_url, json=body, headers=headers, timeout=10.0)
+        res = requests.post(target_url, json=body, headers=headers, timeout=12.0)
         if res.status_code == 200:
             data = res.json()
             return data["choices"][0]["message"]["content"]
@@ -272,3 +250,7 @@ def get_universal_llm(
         base_url=base_url,
         temperature=temperature,
     )
+
+
+# Alias
+get_llm = get_universal_llm

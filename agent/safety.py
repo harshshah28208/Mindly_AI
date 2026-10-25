@@ -28,10 +28,13 @@ HIGH_RISK_PATTERNS: List[re.Pattern] = [
     re.compile(r"\b(?:end\s+my\s+life|ending\s+my\s+life|end\s+it\s+all|ending\s+it\s+all)\b", re.IGNORECASE),
     re.compile(r"\b(?:want\s+to|wanna|ready\s+to|gonna|going\s+to|planning\s+to|plan\s+to|decided\s+to)\s+end\s+it(?:\s+all)?\b", re.IGNORECASE),
     re.compile(r"\b(?:take\s+my\s+own\s+life|taking\s+my\s+own\s+life|decided\s+to\s+end\s+my\s+life)\b", re.IGNORECASE),
-    # 5. Don't want to live / giving up on life
-    re.compile(r"\b(?:don't|dont)\s+(?:want\s+to|wanna)\s+(?:live|exist|wake\s+up)\s*(?:anymore|any\s*more)?\b", re.IGNORECASE),
-    re.compile(r"\b(?:can't|cant)\s+go\s+on\s+living\b", re.IGNORECASE),
-    re.compile(r"\b(?:no\s+reason|nothing)\s+to\s+live\s+for\b", re.IGNORECASE),
+    # 5. Don't want to live / feeling not to live / giving up on life
+    re.compile(r"\b(?:feel|feeling|feels|feel\s+like|feeling\s+like|want|wanna|wants|wishing|wish|prefer|rather)\s+(?:to\s+)?not\s+(?:live|be\s+alive|exist|wake\s+up)(?:\s*(?:anymore|any\s*more))?\b", re.IGNORECASE),
+    re.compile(r"\b(?:not\s+live|not\s+living|stop\s+living|cease\s+living)\s*(?:anymore|any\s*more)?\b", re.IGNORECASE),
+    re.compile(r"\b(?:don't|dont|do\s+not)\s+(?:want\s+to|wanna|feel\s+like)\s+(?:live|living|exist|existing|wake\s+up|being\s+alive)\s*(?:anymore|any\s*more)?\b", re.IGNORECASE),
+    re.compile(r"\b(?:feel|feeling)\s+(?:like\s+)?(?:dying|giving\s+up\s+on\s+life|ending\s+(?:it|my\s+life))\b", re.IGNORECASE),
+    re.compile(r"\b(?:can't|cant|cannot)\s+(?:go\s+on\s+living|take\s+living|keep\s+living|live\s+anymore)\b", re.IGNORECASE),
+    re.compile(r"\b(?:no\s+(?:point|reason|will|desire|purpose|nothing))\s+(?:in|to|for)\s+(?:living|live|being\s+alive|life)\b", re.IGNORECASE),
     re.compile(r"\b(?:give\s+up|giving\s+up)\s+(?:on\s+)?(?:life|living|myself)\b", re.IGNORECASE),
     re.compile(r"\b(?:done\s+with|tired\s+of)\s+(?:life|living)\b", re.IGNORECASE),
     # 6. Self-harm / cutting / hurting oneself
@@ -91,7 +94,8 @@ def is_educational_or_third_person(user_text: str) -> bool:
         "i want to die", "i wanna die", "i will kill myself", "i want to kill myself",
         "kill myself", "end my life", "hurt myself", "i want to suicide", "i wanna suicide",
         "dont wanna live", "don't wanna live", "don't want to live", "dont want to live",
-        "better off dead"
+        "not live anymore", "not living anymore", "feeling to not live", "feel like not living",
+        "feeling like not living", "better off dead"
     ]
     if any(fp in lower for fp in first_person_triggers):
         return False

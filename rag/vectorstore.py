@@ -147,6 +147,10 @@ class VectorStore:
             return []
         query_emb = query_emb / q_norm
 
+        # Extract query keywords excluding common stopwords for hybrid search
+        clean_q = re.sub(r"[^\w\s]", " ", query.lower())
+        query_words = [w for w in clean_q.split() if w not in STOPWORDS and len(w) >= 3]
+
         scores: List[Tuple[float, Dict[str, Any]]] = []
         for chk in self.chunks:
             chk_emb = np.array(chk.get("embedding", []), dtype=np.float32)
@@ -155,17 +159,30 @@ class VectorStore:
                 continue
             chk_emb = chk_emb / c_norm
 
-            sim = float(np.dot(query_emb, chk_emb))
-            if sim >= threshold:
+            dense_sim = float(np.dot(query_emb, chk_emb))
+
+            # Hybrid lexical boost: reward chunks containing the exact medical terms
+            chk_text_lower = chk.get("text", "").lower()
+            lexical_matches = sum(1 for w in query_words if w in chk_text_lower)
+            lexical_score = (lexical_matches / len(query_words)) if query_words else 0.0
+
+            # Title / heading presence boost scaled by keyword specificity
+            title_matches = sum(len(w) for w in query_words if len(w) >= 4 and w in chk_text_lower[:140])
+            title_boost = min(0.40, 0.04 * title_matches)
+
+            # Combined hybrid similarity score
+            hybrid_score = dense_sim + (0.45 * lexical_score) + title_boost
+
+            if hybrid_score >= threshold:
                 res_dict = {
                     "source": chk.get("source", "Gale Encyclopedia of Medicine"),
                     "page": chk.get("page", 1),
                     "chunk_id": chk.get("chunk_id", ""),
                     "document_name": chk.get("document_name", "gale_encyclopedia.pdf"),
                     "text": chk.get("text", ""),
-                    "score": round(sim, 4),
+                    "score": round(hybrid_score, 4),
                 }
-                scores.append((sim, res_dict))
+                scores.append((hybrid_score, res_dict))
 
         # Sort descending by similarity score
         scores.sort(key=lambda x: x[0], reverse=True)

@@ -26,7 +26,11 @@ def classify_emotion_heuristic(user_text: str) -> str:
     """Heuristic rule-based emotion estimation as a reliable baseline or fallback."""
     lower = user_text.lower().strip()
 
-    if any(k in lower for k in ["overwhelm", "drowning", "too much", "can't keep up", "falling apart", "pile on"]):
+    if any(k in lower for k in [
+        "not live", "not living", "want to die", "wanna die", "suicid", "end my life",
+        "end it all", "kill myself", "give up on life", "done with living",
+        "overwhelm", "drowning", "too much", "can't keep up", "falling apart", "pile on"
+    ]):
         return "overwhelmed"
 
     if any(k in lower for k in ["panic", "anxious", "anxiety", "scared", "terrified", "nervous", "racing", "worry", "worried"]):

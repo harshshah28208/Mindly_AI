@@ -265,11 +265,22 @@ def is_therapist_query(user_text: str) -> bool:
     lower = (user_text or "").lower().strip()
     if not lower:
         return False
-    professions = ["therapist", "therapists", "psychologist", "psychologists", "psychiatrist", "psychiatrists", "counselor", "counselors", "counseling", "clinic", "therapy"]
-    actions = ["find", "recommend", "locate", "near", "in", "best", "contact", "list", "directory", "suggest", "look for", "search for", "address", "phone", "appointment"]
-    cities = ["mumbai", "delhi", "bangalore", "new york", "london", "chicago", "san francisco", "toronto"]
-    if any(p in lower for p in professions) and (any(a in lower for a in actions) or any(c in lower for c in cities)):
-        return True
+    professions = ["therapist", "therapists", "psychologist", "psychologists", "psychiatrist", "psychiatrists", "counselor", "counselors", "counseling", "therapy"]
+    if any(p in lower for p in professions):
+        # Exclude pure disease RAG questions like "therapy for hypertension" if not seeking a practitioner
+        if any(w in lower for w in [
+            "find", "recommend", "locate", "near", "in", "best", "contact", "list",
+            "directory", "suggest", "look for", "search for", "address", "phone",
+            "appointment", "session", "locator", "clinical", "licensed", "doctor",
+            "where can i", "who can i", "around", "at", "close to"
+        ]):
+            return True
+        # If user directly queries e.g. "therapists mumbai", "therapist locator"
+        if any(w in lower for w in ["locator", "near me", "in my area", "directory"]):
+            return True
+        # General therapist inquiry
+        if any(p in lower for p in ["licensed therapist", "clinical psychologist", "therapist locator", "find a counselor"]):
+            return True
     return False
 
 
@@ -283,7 +294,11 @@ def classify_intent_heuristic(user_text: str) -> str:
 
     # PRIORITY 1: High-Risk Safety Guard Check (must override normal routing)
     safety = assess_safety(user_text)
-    if safety["risk_level"] == "HIGH":
+    if safety["risk_level"] == "HIGH" or any(k in lower for k in [
+        "not live anymore", "not living anymore", "feeling to not live", "feel like not living",
+        "end my life", "end it all", "kill myself", "suicide", "suicidal", "want to die",
+        "wanna die", "wish i was dead", "give up on life", "done with life"
+    ]):
         return "CRISIS_RELATED"
 
     # PRIORITY 2: Urgent Medical / Acute Health Symptoms

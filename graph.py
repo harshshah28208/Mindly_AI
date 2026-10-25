@@ -626,15 +626,17 @@ def send_message(
         else:
             final_resp = "I am here with you. How can I support you right now?"
 
+    is_high_risk = result.get("risk_level") == "HIGH"
+
     return {
         "response": final_resp,
-        "intent": result.get("detected_intent", "GENERAL_CONVERSATION"),
-        "emotion": result.get("detected_emotion", "neutral"),
+        "intent": result.get("detected_intent") or ("CRISIS_RELATED" if is_high_risk else "GENERAL_CONVERSATION"),
+        "emotion": result.get("detected_emotion") or ("overwhelmed" if is_high_risk else "neutral"),
         "risk_level": result.get("risk_level", "LOW"),
         "safety_status": result.get("safety_status", "PASSED"),
         "health_priority": result.get("health_priority", "NONE"),
-        "action": result.get("selected_action", "DIRECT_RESPONSE"),
-        "tool": result.get("tool_name", "direct_conversation"),
+        "action": result.get("selected_action") or ("CRISIS_RESPONSE" if is_high_risk else "DIRECT_RESPONSE"),
+        "tool": result.get("tool_name") or ("crisis_support_protocol" if is_high_risk else "direct_conversation"),
         "reasoning": result.get("reasoning_summary", "Selected direct empathetic response."),
         "evaluation": result.get("evaluation_result", "PASS"),
         "retries": result.get("retry_count", 0),

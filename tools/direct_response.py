@@ -42,14 +42,25 @@ def generate_direct_response(
     if user_text and user_text not in user_texts:
         user_texts.append(user_text)
 
+    INVALID_NAME_WORDS = {
+        "feeling", "having", "struggling", "hurting", "crying", "dying", "trying",
+        "depressed", "anxious", "stressed", "sad", "tired", "done", "sick", "lost",
+        "not", "just", "really", "so", "very", "looking", "asking", "wondering",
+        "thinking", "here", "ready", "going", "fine", "okay", "good", "bad", "alive",
+        "alone", "afraid", "scared", "experiencing", "suffering", "seeking", "getting",
+        "in", "at", "on", "a", "an", "the", "hoping", "dealing", "facing", "in", "a"
+    }
+
     # Heuristic fact and preference extraction from history
     user_name = None
     user_facts = {}
     for txt in user_texts:
-        # Name extraction
-        name_match = re.search(r"(?:my name is|i am|i'm)\s+([A-Z][a-zA-Z]+)", str(txt), re.IGNORECASE)
+        # Name extraction (only if not an emotional or physical state word)
+        name_match = re.search(r"\b(?:my name is|i am|i'm)\s+([A-Za-z]+)", str(txt), re.IGNORECASE)
         if name_match:
-            user_name = name_match.group(1).capitalize()
+            candidate = name_match.group(1).strip()
+            if candidate.lower() not in INVALID_NAME_WORDS and len(candidate) > 1:
+                user_name = candidate.capitalize()
 
         # Favorite items extraction (e.g. "my favorite subject is Artificial Intelligence")
         fav_matches = re.findall(r"my favorite\s+([a-zA-Z\s]+?)\s+is\s+([a-zA-Z0-9\s]+?)(?:\.|$|,)", str(txt), re.IGNORECASE)
