@@ -279,12 +279,12 @@ def plan_action(
         }
 
     if detected_intent == "EMOTIONAL_SUPPORT":
-        # Context 1: Academic or college workload stress -> Coping tool
-        if any(w in lower for w in ["college", "workload", "study", "deadline", "pressure"]):
+        # Context 1: Academic, college, exam or viva stress -> Coping tool
+        if any(w in lower for w in ["college", "workload", "study", "deadline", "pressure", "viva", "vivas", "exam", "exams", "interview", "presentation", "test", "assignment"]):
             return {
                 "selected_action": "USE_COPING_TOOL",
                 "tool_name": "coping_strategy",
-                "reasoning_summary": "Priority 8 Coping: detected academic or college stress; selected structured coping tool.",
+                "reasoning_summary": "Priority 8 Coping: detected academic, exam, or viva stress; selected structured coping tool.",
             }
         # Context 2: Acute emotional anxiety or somatic exam distress -> Grounding tool
         if detected_emotion in ["anxious", "overwhelmed"] or any(w in lower for w in ["very anxious", "anxiety", "panic"]):

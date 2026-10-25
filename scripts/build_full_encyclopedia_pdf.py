@@ -39,9 +39,9 @@ CONDITIONS_100 = [
      "Implement strict stimulus control, maintain fixed wake-up times 7 days a week, eliminate evening caffeine within 8 hours of bed, and keep the bedroom dark and cool.",
      "Seek sleep specialist evaluation for chronic insomnia with severe daytime sleepiness, witnessed choking/gasping, or restless legs."),
 
-    (5, "Abdominal Pain, Acidity and Gastrointestinal Disorders", "Gastroenterology, Acidity, GERD & Enteric Nervous System",
-     "Abdominal pain and gastric hyperacidity involve chemical mucosal irritation, retrosternal heartburn, epigastric burning, and visceral smooth muscle cramping.",
-     "Lower esophageal sphincter laxity allows acid reflux. The bidirectional brain-gut axis connects enteric nerves to the brain; acute stress provokes acid hypersecretion and spasms.",
+    (5, "Abdominal Pain, Stomach Pain, Acidity, Stomach Ache and Gastrointestinal Disorders", "Gastroenterology, Acidity, Stomach Pain, GERD & Enteric Nervous System",
+     "Abdominal pain, stomach pain, stomach ache, and gastric hyperacidity involve chemical mucosal irritation, retrosternal heartburn, epigastric burning, and visceral smooth muscle cramping.",
+     "Lower esophageal sphincter laxity allows acid reflux. The bidirectional brain-gut axis connects enteric nerves to the brain; acute stress provokes stomach pain, acid hypersecretion, and digestive spasms.",
      "Stay upright (do not lie down for 3 hours), sip lukewarm water, loosen tight waistbands, and take an over-the-counter antacid or H2 blocker.",
      "Eat small, frequent bland meals (bananas, rice, oats), avoid fried foods, citrus, soda, and coffee, elevate the bedhead 6 inches, and manage stress.",
      "Seek emergency care for vomiting blood or coffee-ground material, black tarry stools, high fever, or rigid board-like abdominal hardness."),

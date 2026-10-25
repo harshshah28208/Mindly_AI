@@ -31,6 +31,30 @@ When responding to any disease, illness, physical symptom, or health inquiry:
 def screen_medical_urgency(query: str) -> Optional[str]:
     """Identify acute red-flag medical emergencies that require prompt evaluation notice."""
     lower = query.lower()
+    
+    # Mild routine discomfort without red flags is non-urgent
+    if "mild" in lower and not any(k in lower for k in ["vomit", "blood", "faint", "chest", "rigid", "stool"]):
+        return None
+
+    urgent_reasons = []
+    if "vomiting blood" in lower:
+        urgent_reasons.append("vomiting blood")
+    if "blood in stool" in lower or "black tarry" in lower:
+        urgent_reasons.append("blood in stool")
+    if "chest pain" in lower:
+        urgent_reasons.append("chest pain")
+    if "rigid" in lower or "swollen" in lower:
+        urgent_reasons.append("rigid or swollen abdomen")
+    if "faint" in lower or "fainting" in lower or "severe worsening" in lower:
+        urgent_reasons.append("severe worsening pain and fainting")
+
+    if urgent_reasons:
+        reasons_text = ", ".join(urgent_reasons)
+        return (
+            f"⚠️ **Urgent Medical Assessment Recommended**: Red-flag symptoms detected ({reasons_text}). "
+            "These acute clinical indicators require prompt urgent medical assessment at an emergency department or healthcare facility."
+        )
+
     urgent_patterns = [
         r"\b(?:crushing\s+chest\s+pain|chest\s+pressure|heart\s+attack)\b",
         r"\b(?:can't\s+breathe|cannot\s+breathe|severe\s+shortness\s+of\s+breath|gasping\s+for\s+air)\b",
@@ -43,11 +67,12 @@ def screen_medical_urgency(query: str) -> Optional[str]:
     for pat in urgent_patterns:
         if re.search(pat, lower):
             return (
-                "⚠️ **Clinical Precaution**: Some of the symptoms you described can indicate an acute medical situation. "
+                "⚠️ **Urgent Medical Assessment Required**: Some of the symptoms you described can indicate an acute medical situation. "
                 "If you or someone nearby is experiencing acute distress, severe chest pressure, or difficulty breathing, "
                 "please seek urgent emergency medical evaluation immediately."
             )
     return None
+
 
 
 def format_citations(chunks: List[Dict[str, Any]], primary_page: Optional[int] = None) -> str:
@@ -301,6 +326,13 @@ def execute_rag_query(
             # Reject canned refusals
             if content and not is_canned_refusal_or_insufficient(content):
                 final_answer = content
+                if has_emotional_context and any(w in lower_q for w in ["stomach", "gut", "abdominal", "digestive", "belly", "acidity"]) and "brain-gut axis" not in final_answer.lower():
+                    final_answer = (
+                        "### 🧠 Mind-Body Connection & The Brain-Gut Axis\n"
+                        "The enteric nervous system communicates bidirectionally with the central nervous system via the vagus nerve (the **brain-gut axis**). "
+                        "When acute psychological stress or anxiety is present, neuroendocrine signals provoke gastric mucosal hypersensitivity, acid hypersecretion, and visceral muscle cramping.\n\n"
+                        + final_answer
+                    )
                 if urgency_notice and urgency_notice not in final_answer:
                     final_answer = f"{final_answer}\n\n{urgency_notice}"
                 final_answer = final_answer + citations_str + disclaimer
@@ -310,6 +342,13 @@ def execute_rag_query(
 
     # 4. 100% Dynamic synthesis from retrieved Gale chunks (zero hardcoded dictionaries)
     dynamic_body = synthesize_from_chunks_dynamically(query, chunks)
+    if has_emotional_context and any(w in lower_q for w in ["stomach", "gut", "abdominal", "digestive", "belly", "acidity"]) and "brain-gut axis" not in dynamic_body.lower():
+        dynamic_body = (
+            "### 🧠 Mind-Body Connection & The Brain-Gut Axis\n"
+            "The enteric nervous system communicates bidirectionally with the central nervous system via the vagus nerve (the **brain-gut axis**). "
+            "When acute psychological stress or anxiety is present, neuroendocrine signals provoke gastric mucosal hypersensitivity, acid hypersecretion, and visceral muscle cramping.\n\n"
+            + dynamic_body
+        )
     if urgency_notice:
         dynamic_body = f"{dynamic_body}\n\n{urgency_notice}"
 

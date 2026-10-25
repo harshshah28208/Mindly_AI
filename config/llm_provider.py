@@ -120,13 +120,50 @@ class DynamicLocalResponseEngine:
                 "Whatever is on your heart or mind today, this is your safe space. How are you feeling right now?"
             )
 
-        # Dynamic, conversational empathetic reflection
-        return (
-            f"Thank you for sharing that openly with me{name_suffix}. "
-            "I'm listening attentively and holding space for what you're experiencing.\n\n"
-            "Taking time to put words to how you are feeling is a courageous step toward clarity. "
-            "Would you like to explore what led up to this, focus on a calming grounding exercise, or discuss practical steps to navigate it?"
-        )
+        # Affirmative continuations ("yes", "sure", "please", "yeah", "ok")
+        if re.search(r"^(?:yes|yeah|yep|sure|please|ok|okay|yes please|do that|go ahead|tell me|help me)\b", lower):
+            return (
+                f"I am right here with you{name_suffix}. Let's take this one step at a time.\n\n"
+                "Would you like to focus on steadying physical tension with a guided breathing rhythm, or explore practical action steps together?"
+            )
+
+        # Gratitude
+        if any(k in lower for k in ["thank you", "thanks", "appreciate it", "helpful"]):
+            return (
+                f"You are very welcome{name_suffix}! I am always here to support your wellness, clarity, and peace of mind. "
+                "Reach out whenever you need a grounding pause or clinical insight."
+            )
+
+        # Dynamic, contextual empathetic reflection based on user's exact input
+        # Extract meaningful emotion or topic tokens
+        topic_words = [w for w in re.findall(r"\b[a-zA-Z]{4,}\b", lower) if w not in {"what", "this", "that", "with", "have", "from", "they", "will", "would", "about", "there", "their", "could", "should", "your", "mindly"}]
+        topic_preview = ", ".join(topic_words[:3]) if topic_words else "what you're experiencing"
+
+        if any(w in lower for w in ["anxious", "anxiety", "panic", "nervous", "scared", "terrified"]):
+            return (
+                f"I hear how much anxiety is present for you right now{name_suffix}. Feeling anxious when facing {topic_preview} "
+                "is your nervous system trying to protect you, but it can feel exhausting.\n\n"
+                "Let's ground your physical body first: place both feet flat on the floor, drop your shoulders away from your ears, and take one slow exhale. "
+                "Would you like to try a structured 4-4-4-4 breathing cycle together, or unpack what is making you feel most worried?"
+            )
+        elif any(w in lower for w in ["sad", "lonely", "alone", "crying", "depressed", "hopeless", "hurt", "grief"]):
+            return (
+                f"I'm holding gentle space for you{name_suffix}. Moving through feelings of sadness around {topic_preview} "
+                "can feel heavy and isolating. You don't have to carry it alone or put on a brave face here.\n\n"
+                "I'm listening with care. What has felt the heaviest for you today?"
+            )
+        elif any(w in lower for w in ["tired", "exhausted", "burnout", "drained", "can't sleep"]):
+            return (
+                f"Your mind and body are signaling that you're carrying a heavy load{name_suffix}. Dealing with {topic_preview} "
+                "takes real energy, and cognitive fatigue is a sign to rest, not push harder.\n\n"
+                "Give yourself permission to pause for a few minutes. What is one small demand you can set aside for the rest of today?"
+            )
+        else:
+            return (
+                f"Thank you for sharing that with me{name_suffix}. I am listening attentively to your thoughts about {topic_preview}.\n\n"
+                "Every step toward putting your experience into words helps bring clarity. "
+                "How has this been affecting your day, and what kind of support would feel most helpful right now?"
+            )
 
 
 class UniversalChatModel:

@@ -1,10 +1,4 @@
-"""Coping strategies tool for Mindly.
-
-Provides structured, evidence-informed wellness strategies and cognitive reframing.
-Supports secondary model configuration (e.g. MedGemma or specialized coping model)
-with automatic fallback to the primary model or deterministic templates.
-"""
-
+import re
 from typing import Optional
 from langchain_core.messages import HumanMessage, SystemMessage
 from config.settings import settings
@@ -22,57 +16,47 @@ Strict Guidelines:
 
 
 def generate_heuristic_coping(user_text: str, emotion: str = "stressed") -> str:
-    """Deterministic, high-quality coping strategies for offline or fallback execution."""
-    lower = user_text.lower()
+    """Dynamic fallback coping strategies dynamically synthesized from user context and emotional state."""
+    clean_words = [
+        w for w in re.findall(r"\b[a-zA-Z]{4,}\b", user_text.lower())
+        if w not in {"what", "this", "that", "with", "have", "from", "they", "will", "would", "about", "there", "their", "could", "should", "your", "mindly", "feel", "feeling"}
+    ]
+    topic = " ".join(clean_words[:4]) if clean_words else "what you are experiencing"
 
-    if any(k in lower for k in ["exam", "study", "college", "deadline", "assignment", "workload"]):
-        return (
-            "### 📚 Actionable Strategies for Academic Workload & Exam Stress\n\n"
-            "Academic pressure can easily trigger cognitive overload. Here are three grounded steps to regain control:\n\n"
-            "1. **The 15-Minute Micro-Start**: Instead of trying to tackle an entire syllabus or paper, commit to working on just ONE specific paragraph or problem for 15 minutes. Starting dissolves resistance.\n"
-            "2. **Triage Your Tasks (Brain Dump & Sort)**: Write everything down on physical paper. Separate into:\n"
-            "   - *Must do today* (limit to 1 or 2 items)\n"
-            "   - *Can wait until tomorrow*\n"
-            "   - *Things out of your control*\n"
-            "3. **Structured Rest Intervals**: Work in 25-minute bursts followed by a complete 5-minute cognitive break away from all screens.\n\n"
-            "💡 *Remember: Your worth as a human being is not measured by academic perfection. Progress over perfection.*"
-        )
-    elif any(k in lower for k in ["sleep", "tired", "insomnia", "night"]):
-        return (
-            "### 🌙 Gentle Evening Decompression & Sleep Routine\n\n"
-            "When thoughts keep your mind awake, trying to force sleep often creates more tension. Try these bedtime coping habits:\n\n"
-            "1. **Worry Download**: Keep a notepad by your bed. Write down all unfinished thoughts with the note: *'I have noted these down; they will wait for tomorrow morning.'*\n"
-            "2. **4-7-8 Evening Breathing**: Inhale quietly for 4 seconds, hold for 7 seconds, exhale audibly through your mouth for 8 seconds. Repeat 4 cycles.\n"
-            "3. **Screen Demilitarized Zone**: Dim room lighting and switch screens off 30 minutes before sleep to allow melatonin release.\n\n"
-            "✨ *Resting quietly in bed is still restoring your body, even if your mind hasn't completely drifted off yet.*"
-        )
-    else:
-        return (
-            "### 🛡️ Daily Emotional Regulation & Stress Management Strategies\n\n"
-            "When emotional tension builds up, here is a practical framework to steady yourself:\n\n"
-            "1. **Name What You Are Carrying**: Put words to the feeling (e.g., *'I am noticing feelings of anxiety about the future'*). Naming emotions engages your prefrontal cortex and reduces amygdala reactivity.\n"
-            "2. **Physical Reset**: Step outside for 5 minutes, drink a cold glass of water, or gently stretch your neck and shoulders.\n"
-            "3. **Set a Micro-Boundary**: Give yourself permission to say 'not right now' to non-essential commitments for the next 2 hours.\n\n"
-            "🌱 *If stress or anxiety feels persistent and begins disrupting your daily functioning, consider speaking with your campus counseling center or a healthcare professional.*"
-        )
+    return (
+        f"### 🌿 Personalized Coping & Mindful Grounding Plan\n\n"
+        f"Navigating challenges around **{topic}** can feel deeply demanding, especially when carrying feelings of {emotion}.\n\n"
+        f"1. **Validate Your Experience**: Acknowledge that feeling {emotion} around {topic} is a natural biological reaction to pressure. Giving yourself permission to feel this immediately eases internal resistance.\n"
+        f"2. **The 10-Minute Micro-Action**: When {topic} feels overwhelming, avoid looking at the entire mountain. Commit to just ONE single 10-minute focused micro-step.\n"
+        f"3. **Somatic Physiological Reset**: Take 3 slow, deep abdominal breaths (inhale for 4 seconds, pause, exhale smoothly for 6 seconds) to downregulate nervous system arousal.\n\n"
+        f"🌱 *Take it one step at a time. What is one small, gentle action that would feel most supportive right now?*"
+    )
 
 
 def generate_coping_strategies(user_text: str, emotion: str = "stressed", llm=None) -> str:
-    """Generate coping suggestions using LLM if available, otherwise heuristics."""
+    """Generate dynamic coping suggestions using LLM, with contextual synthesis fallback."""
+    if llm is None:
+        try:
+            from config.llm_provider import get_llm
+            llm = get_llm(model=settings.coping_model)
+        except Exception:
+            llm = None
+
     if llm is not None:
         try:
             messages = [
                 SystemMessage(content=COPING_SYSTEM_PROMPT),
                 HumanMessage(
-                    content=f"The user is feeling {emotion}. Their input is: \"{user_text}\". "
-                            f"Provide supportive, structured coping strategies."
+                    content=f"The user is feeling {emotion}. Their situation is: \"{user_text}\". "
+                            f"Generate compassionate, practical, and highly actionable coping micro-steps tailored directly to their situation."
                 ),
             ]
             response = llm.invoke(messages)
             content = str(response.content).strip()
-            if len(content) > 50:
+            if len(content) > 40:
                 return content
         except Exception:
             pass
 
     return generate_heuristic_coping(user_text=user_text, emotion=emotion)
+
