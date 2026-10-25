@@ -91,6 +91,13 @@ def generate_direct_response(
         )
 
     # If LLM is available, invoke it with the empathetic Mindly system prompt
+    if llm is None:
+        try:
+            from config.llm_provider import get_llm
+            llm = get_llm()
+        except Exception:
+            pass
+
     if llm is not None:
         try:
             sys_msg = SystemMessage(content=MINDLY_SYSTEM_PROMPT)

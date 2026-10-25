@@ -113,20 +113,6 @@ class DynamicLocalResponseEngine:
                 "and a safe space to untangle your thoughts and physical symptoms."
             )
 
-        # Check if invocation requests a coping strategy (prioritized before conversational greetings)
-        is_coping = any("coping" in str(m.content).lower() for m in messages if isinstance(m, SystemMessage))
-        if is_coping or any(k in lower for k in ["what can i do", "what should i do", "how to cope", "coping strategies", "anxious about vivas", "anxious about viva", "exam stress", "study stress"]):
-            from tools.coping import generate_heuristic_coping
-            return generate_heuristic_coping(user_text=last_human_msg, emotion="overwhelmed" if "anxious" in lower else "stressed")
-
-        # Check if invocation requests clinical RAG (prioritized before conversational greetings)
-        is_rag = any("gale encyclopedia" in str(m.content).lower() or "clinical health educator" in str(m.content).lower() for m in messages if isinstance(m, SystemMessage))
-        if is_rag:
-            from tools.rag import synthesize_from_chunks_dynamically
-            from rag.retriever import retrieve_relevant_chunks
-            chunks = retrieve_relevant_chunks(last_human_msg, top_k=3)
-            return synthesize_from_chunks_dynamically(last_human_msg, chunks)
-
         # Greetings (strict whole-word matching to prevent substring collisions like 'highly')
         if bool(re.search(r"\b(?:hello|hi|hey|good\s+morning|good\s+evening|good\s+afternoon)\b", lower)):
             return (
@@ -135,39 +121,11 @@ class DynamicLocalResponseEngine:
             )
 
         # Affirmative continuations ("yes", "sure", "please", "yeah", "ok", "yes sure")
-        if re.search(r"\b(?:yes|yeah|yep|sure|please|ok|okay|do that|go ahead)\b", lower):
-            prior_texts = [str(m.content).lower() for m in messages[:-1] if isinstance(m, (HumanMessage, AIMessage))]
-            prior_history_text = " ".join(prior_texts)
-            is_academic = any(w in prior_history_text or w in lower for w in ["viva", "vivas", "exam", "exams", "interview", "presentation", "study"])
-
-            if is_academic:
-                return (
-                    f"Let's walk through your viva composure steps right now{name_suffix}:\n\n"
-                    "### 🌬️ Step 1: Immediate Somatic Reset (Box Breathing)\n"
-                    "Let's steady your heart rate and nervous system right now:\n"
-                    "1. **Inhale slowly through your nose** for **4 seconds** *(feel your belly expand)*\n"
-                    "2. **Hold your breath gently** for **4 seconds** *(stay relaxed, release jaw tension)*\n"
-                    "3. **Exhale smoothly through your mouth** for **4 seconds** *(let the nervous flutter release)*\n"
-                    "4. **Rest empty** for **4 seconds** *(feel the calm, grounded space)*\n\n"
-                    "### 🎯 Step 2: The Golden Rule for the Viva Room\n"
-                    "• **If you know the answer**: Pause for 2 seconds, state the core definition in one sentence, then give a concrete example.\n"
-                    "• **If you get stuck on a question**: Don't panic or freeze. Say with composure: *\"I'd like to reason through this from the fundamentals...\"* Examiners respect students who think analytically under pressure.\n\n"
-                    "### 📝 Step 3: Your 10-Minute Micro-Action\n"
-                    "Open your notes to just ONE key question or diagram. Read it once, close the notes, and explain it out loud in 2 minutes.\n\n"
-                    "Take a deep breath. How are your shoulders and breathing feeling right now?"
-                )
-            else:
-                return (
-                    f"Let's do that right now together{name_suffix}. Here are two immediate, grounding steps:\n\n"
-                    "### 🌬️ Quick 4-4-4-4 Somatic Reset\n"
-                    "1. **Inhale slowly through your nose** for **4 seconds** *(feel your belly expand)*\n"
-                    "2. **Hold your breath gently** for **4 seconds** *(stay relaxed, no tension)*\n"
-                    "3. **Exhale smoothly through your mouth** for **4 seconds** *(release the pressure)*\n"
-                    "4. **Rest and pause** for **4 seconds** *(stay in the calm space)*\n\n"
-                    "### 🎯 The Next Immediate Action Step\n"
-                    "Now set a timer for just **10 minutes**, set aside all other concerns, and focus on only ONE single micro-task. Once 10 minutes pass, give yourself a break.\n\n"
-                    "Take a slow breath. How does your chest and breathing feel right now?"
-                )
+        if re.search(r"^(?:yes|yeah|yep|sure|please|ok|okay|yes\s+sure|go\s+ahead)[\s.?!]*$", lower):
+            return (
+                f"I'm right here with you{name_suffix}. Take a calm breath. "
+                "What would feel most helpful for us to focus on next?"
+            )
 
         # Gratitude
         if any(k in lower for k in ["thank you", "thanks", "appreciate it", "helpful"]):
@@ -177,35 +135,14 @@ class DynamicLocalResponseEngine:
             )
 
         # Dynamic, contextual empathetic reflection based on user's exact input
-        # Extract meaningful emotion or topic tokens
-        topic_words = [w for w in re.findall(r"\b[a-zA-Z]{4,}\b", lower) if w not in {"what", "this", "that", "with", "have", "from", "they", "will", "would", "about", "there", "their", "could", "should", "your", "mindly"}]
-        topic_preview = ", ".join(topic_words[:3]) if topic_words else "what you're experiencing"
+        topic_words = [w for w in re.findall(r"\b[a-zA-Z]{4,}\b", lower) if w not in {"what", "this", "that", "with", "have", "from", "they", "will", "would", "about", "there", "their", "could", "should", "your", "mindly", "feel", "feeling"}]
+        topic_preview = ", ".join(topic_words[:3]) if topic_words else "what you are experiencing"
 
-        if any(w in lower for w in ["anxious", "anxiety", "panic", "nervous", "scared", "terrified"]):
-            return (
-                f"I hear how much anxiety is present for you right now{name_suffix}. Feeling anxious when facing {topic_preview} "
-                "is your nervous system trying to protect you, but it can feel exhausting.\n\n"
-                "Let's ground your physical body first: place both feet flat on the floor, drop your shoulders away from your ears, and take one slow exhale. "
-                "Would you like to try a structured 4-4-4-4 breathing cycle together, or unpack what is making you feel most worried?"
-            )
-        elif any(w in lower for w in ["sad", "lonely", "alone", "crying", "depressed", "hopeless", "hurt", "grief"]):
-            return (
-                f"I'm holding gentle space for you{name_suffix}. Moving through feelings of sadness around {topic_preview} "
-                "can feel heavy and isolating. You don't have to carry it alone or put on a brave face here.\n\n"
-                "I'm listening with care. What has felt the heaviest for you today?"
-            )
-        elif any(w in lower for w in ["tired", "exhausted", "burnout", "drained", "can't sleep"]):
-            return (
-                f"Your mind and body are signaling that you're carrying a heavy load{name_suffix}. Dealing with {topic_preview} "
-                "takes real energy, and cognitive fatigue is a sign to rest, not push harder.\n\n"
-                "Give yourself permission to pause for a few minutes. What is one small demand you can set aside for the rest of today?"
-            )
-        else:
-            return (
-                f"I am listening attentively to what you're sharing{name_suffix}. Putting experiences around {topic_preview} "
-                "into words is an important step toward untangling them.\n\n"
-                "How has this been impacting your energy or peace of mind today, and what would feel most supportive right now?"
-            )
+        return (
+            f"I hear you{name_suffix}, and I'm listening closely to what you shared about {topic_preview}. "
+            f"Taking a moment to pause and put words to this is a meaningful step.\n\n"
+            f"What aspect of this is feeling most challenging or top of mind for you right now?"
+        )
 
 
 class UniversalChatModel:
@@ -225,13 +162,33 @@ class UniversalChatModel:
 
     def invoke(self, messages: List[BaseMessage]) -> AIMessage:
         """Invoke LLM across available providers with automatic graceful fallback."""
-        # 1. Check if Cloud OpenAI/Groq API key is present
+        # 1. Check if Cloud OpenAI/Groq API key is present (from env, session_state, or st.secrets)
         api_key = os.getenv("OPENAI_API_KEY", "") or os.getenv("GROQ_API_KEY", "")
         openai_url = os.getenv("OPENAI_BASE_URL", "")
-        if not openai_url and os.getenv("GROQ_API_KEY"):
-            openai_url = "https://api.groq.com/openai/v1"
+
+        try:
+            import sys
+            if "streamlit" in sys.modules:
+                st = sys.modules["streamlit"]
+                if not api_key:
+                    if hasattr(st, "session_state") and st.session_state.get("cloud_api_key"):
+                        api_key = str(st.session_state["cloud_api_key"]).strip()
+                if not api_key and hasattr(st, "secrets"):
+                    if "GROQ_API_KEY" in st.secrets:
+                        api_key = str(st.secrets["GROQ_API_KEY"]).strip()
+                        if not openai_url:
+                            openai_url = "https://api.groq.com/openai/v1"
+                    elif "OPENAI_API_KEY" in st.secrets:
+                        api_key = str(st.secrets["OPENAI_API_KEY"]).strip()
+        except Exception:
+            pass
 
         if api_key:
+            if api_key.startswith("gsk_") and not openai_url:
+                openai_url = "https://api.groq.com/openai/v1"
+            elif not openai_url and os.getenv("GROQ_API_KEY"):
+                openai_url = "https://api.groq.com/openai/v1"
+
             try:
                 cloud_resp = self._invoke_openai_compatible(messages, api_key, openai_url)
                 if cloud_resp:
@@ -239,7 +196,7 @@ class UniversalChatModel:
             except Exception:
                 pass
 
-        # 2. Check Local Ollama via fast native HTTP /api/chat
+        # 2. Check Local Ollama via fast native HTTP /api/chat with bounded token count
         health = settings.check_ollama_health()
         if health["is_running"]:
             try:
@@ -258,9 +215,12 @@ class UniversalChatModel:
                         "model": self.model,
                         "messages": payload_msgs,
                         "stream": False,
-                        "options": {"temperature": self.temperature},
+                        "options": {
+                            "temperature": self.temperature,
+                            "num_predict": 250,  # Bound generation tokens for fast CPU execution
+                        },
                     },
-                    timeout=12.0,
+                    timeout=45.0,
                 )
                 if resp.status_code == 200:
                     data = resp.json()
@@ -270,7 +230,7 @@ class UniversalChatModel:
             except Exception:
                 pass
 
-        # 3. Dynamic Smart Local Engine (Zero dependency, instant, high quality, contextual)
+        # 3. Dynamic Smart Local Engine (Zero dependency, instant, contextual fallback)
         dynamic_text = DynamicLocalResponseEngine.generate(messages)
         return AIMessage(content=dynamic_text)
 
@@ -295,9 +255,10 @@ class UniversalChatModel:
             "model": model_name,
             "messages": payload_msgs,
             "temperature": self.temperature,
+            "max_tokens": 400,
         }
 
-        res = requests.post(target_url, json=body, headers=headers, timeout=12.0)
+        res = requests.post(target_url, json=body, headers=headers, timeout=20.0)
         if res.status_code == 200:
             data = res.json()
             return data["choices"][0]["message"]["content"]

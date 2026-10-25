@@ -142,16 +142,42 @@ with st.sidebar:
     st.caption("Clinical & Wellness Multi-Agent System")
 
     health = settings.check_ollama_health()
-    has_api = bool(os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY"))
+    cloud_key = st.session_state.get("cloud_api_key", os.getenv("GROQ_API_KEY", "") or os.getenv("OPENAI_API_KEY", ""))
+    if not cloud_key and hasattr(st, "secrets"):
+        cloud_key = st.secrets.get("GROQ_API_KEY", "") or st.secrets.get("OPENAI_API_KEY", "")
+
+    has_api = bool(cloud_key)
 
     if has_api:
-        st.success("🟢 Cloud LLM Connected (Groq/OpenAI)")
+        provider_name = "Groq Llama-3.3-70B" if str(cloud_key).startswith("gsk_") else "Cloud LLM (OpenAI/Groq)"
+        st.success(f"🟢 {provider_name} Active")
     elif health["is_running"] and health["model_installed"]:
         st.success(f"🟢 Local Ollama Active ({settings.ollama_model})")
     elif health["is_running"]:
         st.warning("🟡 Ollama Online (Model Pulling)")
     else:
-        st.info("🔵 Dynamic Local Engine (Zero-Server Mode)")
+        st.info("🔵 Dynamic Local Engine")
+
+    with st.expander("🔑 Cloud LLM Key (Groq / OpenAI)", expanded=not (health["is_running"] or has_api)):
+        st.markdown(
+            "For instant dynamic reasoning on Streamlit Cloud, enter a free API key:\n\n"
+            "👉 [Get Free Groq Key (30s)](https://console.groq.com/keys)"
+        )
+        user_key_input = st.text_input(
+            "API Key (Groq or OpenAI):",
+            value=cloud_key,
+            type="password",
+            help="Get a 100% free key from https://console.groq.com",
+            key="cloud_key_input_field",
+        )
+        if user_key_input and user_key_input.strip() != str(cloud_key).strip():
+            clean_key = user_key_input.strip()
+            st.session_state["cloud_api_key"] = clean_key
+            if clean_key.startswith("gsk_"):
+                os.environ["GROQ_API_KEY"] = clean_key
+            else:
+                os.environ["OPENAI_API_KEY"] = clean_key
+            st.rerun()
 
     st.markdown("---")
     st.markdown("##### 🧩 Architecture Status")
