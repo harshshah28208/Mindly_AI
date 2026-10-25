@@ -218,7 +218,7 @@ class UniversalChatModel:
                         "stream": False,
                         "options": {"temperature": self.temperature},
                     },
-                    timeout=25.0,
+                    timeout=12.0,
                 )
                 if resp.status_code == 200:
                     data = resp.json()
@@ -228,21 +228,7 @@ class UniversalChatModel:
             except Exception:
                 pass
 
-            # Fallback to langchain_ollama client
-            try:
-                from langchain_ollama import ChatOllama
-                client = ChatOllama(
-                    model=self.model,
-                    base_url=self.base_url,
-                    temperature=self.temperature,
-                )
-                res = client.invoke(messages)
-                if res and res.content:
-                    return res
-            except Exception:
-                pass
-
-        # 3. Dynamic Smart Local Engine (Zero dependency, high quality, contextual)
+        # 3. Dynamic Smart Local Engine (Zero dependency, instant, high quality, contextual)
         dynamic_text = DynamicLocalResponseEngine.generate(messages)
         return AIMessage(content=dynamic_text)
 
