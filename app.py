@@ -150,17 +150,60 @@ with st.sidebar:
         except Exception:
             cloud_key = ""
 
-    has_api = bool(cloud_key)
+    # Provider mode selector & Fallback toggle
+    current_provider_mode = st.session_state.get(
+        "llm_provider_choice",
+        os.getenv("LLM_PROVIDER", getattr(settings, "llm_provider", "auto")).lower()
+    )
+    provider_options = ["auto", "ollama", "groq", "openai"]
+    default_idx = provider_options.index(current_provider_mode) if current_provider_mode in provider_options else 0
 
-    if has_api:
-        provider_name = "Groq Llama-3.3-70B" if str(cloud_key).startswith("gsk_") else "Cloud LLM (OpenAI/Groq)"
-        st.success(f"🟢 {provider_name} Active")
-    elif health["is_running"] and health["model_installed"]:
-        st.success(f"🟢 Local Ollama Active ({settings.ollama_model})")
-    elif health["is_running"]:
-        st.warning("🟡 Ollama Online (Model Pulling)")
+    selected_provider = st.selectbox(
+        "⚡ LLM Provider Mode",
+        options=provider_options,
+        index=default_idx,
+        format_func=lambda x: {
+            "auto": "Auto (Best Available)",
+            "ollama": f"Local Ollama ({settings.ollama_model})",
+            "groq": "Cloud Groq (Llama 3.3 70B)",
+            "openai": "Cloud OpenAI (GPT-4o-mini)",
+        }.get(x, x),
+        help="Select explicit LLM provider or allow auto-orchestration."
+    )
+    if selected_provider != current_provider_mode:
+        st.session_state["llm_provider_choice"] = selected_provider
+        st.session_state["llm_provider"] = selected_provider
+        os.environ["LLM_PROVIDER"] = selected_provider
+        settings.llm_provider = selected_provider
+        st.rerun()
+
+    fallback_toggle = st.toggle(
+        "🛡️ Graceful Local Fallback",
+        value=getattr(settings, "llm_fallback_enabled", True),
+        help="If enabled, Mindly gracefully falls back to local heuristic synthesis if the LLM fails. If disabled, a diagnostic error is returned.",
+    )
+    if fallback_toggle != getattr(settings, "llm_fallback_enabled", True):
+        settings.llm_fallback_enabled = fallback_toggle
+        os.environ["LLM_FALLBACK_ENABLED"] = str(fallback_toggle).lower()
+        st.session_state["llm_fallback_enabled"] = fallback_toggle
+
+    if selected_provider == "ollama":
+        if health["is_running"] and health["model_installed"]:
+            st.success(f"🟢 Local Ollama Selected ({settings.ollama_model})")
+        else:
+            st.warning(f"⚠️ Ollama Selected but offline/missing ({settings.ollama_model})")
+    elif selected_provider in ["groq", "openai"]:
+        if has_api:
+            st.success(f"🟢 Explicit Cloud Active ({selected_provider.upper()})")
+        else:
+            st.warning(f"⚠️ Cloud Selected but missing API Key")
     else:
-        st.info("🔵 Dynamic Local Engine")
+        if has_api:
+            st.success(f"🟢 Auto Mode: Cloud LLM Active")
+        elif health["is_running"] and health["model_installed"]:
+            st.success(f"🟢 Auto Mode: Local Ollama Active ({settings.ollama_model})")
+        else:
+            st.info("🔵 Auto Mode: Dynamic Local Engine")
 
     with st.expander("🔑 Cloud LLM Key (Groq / OpenAI)", expanded=not (health["is_running"] or has_api)):
         st.markdown(
@@ -320,11 +363,24 @@ def render_agent_trace(act: Dict[str, Any], sources: List[Dict[str, Any]]):
             eval_color = "green" if eval_val == "PASS" else "orange"
             retries = act.get("retries", 0)
             st.markdown(f"**🔍 Evaluator:** :{eval_color}[**{eval_val}**] `({retries} replans)`")
+            
+            p_req = act.get("provider_requested", "Auto")
+            p_used = act.get("provider_used") or act.get("llm_provider", "Dynamic Local Engine")
+            is_fb = act.get("is_fallback", False)
+            fb_color = "orange" if is_fb else "green"
+            fb_text = "Active (Graceful Degradation)" if is_fb else "Off (Direct LLM)"
+            st.markdown(f"**⚡ Provider Req / Used:** `{p_req}` → `{p_used}`")
+            st.markdown(f"**🛡️ Fallback:** :{fb_color}[**{fb_text}**]")
+            
             esc = act.get("escalation")
             if esc:
                 st.markdown(f"**👤 Supervisor:** :red[**{esc}**]")
             else:
                 st.markdown("**🧩 Graph State:** :green[**Completed**]")
+
+        diag_msg = act.get("diagnostic_message")
+        if diag_msg:
+            st.warning(f"ℹ️ **Developer Diagnostic**: {diag_msg}")
 
         if is_high_risk:
             call_info = act.get("emergency_call") or {}
@@ -457,12 +513,14 @@ with tab_chat:
                 p_used = act.get("llm_provider", "Dynamic Engine")
                 m_used = act.get("llm_model", "")
                 l_val = act.get("latency", 0.0)
-                if "Groq" in p_used:
+                if act.get("is_fallback"):
+                    st.caption(f"🛡️ **Graceful Fallback**: Dynamic Local Engine (`{act.get('error_category', 'fallback')}`) in **{l_val}s** (Developer diagnostic logged)")
+                elif "Groq" in p_used:
                     st.caption(f"⚡ **Generated by Groq LPU** (`{m_used}`) in **{l_val}s** (Real Online LLM)")
                 elif "Ollama" in p_used:
                     st.caption(f"🌿 **Generated by Local Ollama** (`{m_used}`) in **{l_val}s** (Real Offline LLM)")
                 else:
-                    st.caption(f"ℹ️ **Generated by {p_used}** in **{l_val}s** (Add a Groq key in sidebar for Online LLM)")
+                    st.caption(f"ℹ️ **Generated by {p_used}** in **{l_val}s**")
                 render_agent_trace(act, sources)
 
     # Chat Action Controls
@@ -546,12 +604,14 @@ with tab_chat:
                 p_used = result.get("llm_provider", "Dynamic Engine")
                 m_used = result.get("llm_model", "")
                 l_val = result.get("latency", 0.0)
-                if "Groq" in p_used:
+                if result.get("is_fallback"):
+                    st.caption(f"🛡️ **Graceful Fallback**: Dynamic Local Engine (`{result.get('error_category', 'fallback')}`) in **{l_val}s** (Developer diagnostic logged)")
+                elif "Groq" in p_used:
                     st.caption(f"⚡ **Generated by Groq LPU** (`{m_used}`) in **{l_val}s** (Real Online LLM)")
                 elif "Ollama" in p_used:
                     st.caption(f"🌿 **Generated by Local Ollama** (`{m_used}`) in **{l_val}s** (Real Offline LLM)")
                 else:
-                    st.caption(f"ℹ️ **Generated by {p_used}** in **{l_val}s** (Add a Groq key in sidebar for Online LLM)")
+                    st.caption(f"ℹ️ **Generated by {p_used}** in **{l_val}s**")
                 render_agent_trace(result, retrieved_srcs)
 
                 st.session_state.messages.append({

@@ -26,6 +26,7 @@ class Settings:
     def __init__(self) -> None:
         # LLM & Multi-Provider Settings
         self.llm_provider: str = os.getenv("LLM_PROVIDER", "auto").strip().lower()
+        self.llm_fallback_enabled: bool = os.getenv("LLM_FALLBACK_ENABLED", "true").strip().lower() in ("true", "1", "yes")
         self.openai_api_key: str = os.getenv("OPENAI_API_KEY", "").strip()
         self.openai_base_url: str = os.getenv("OPENAI_BASE_URL", "").strip()
         self.openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
@@ -104,14 +105,18 @@ class Settings:
         """Absolute path to the Gale Encyclopedia of Medicine PDF."""
         return self.knowledge_dir / self.gale_pdf_filename
 
-    def check_ollama_health(self) -> Dict[str, Any]:
-        """Perform a quick, non-blocking health check against the local Ollama instance.
+    def check_ollama_health(self, test_generation: bool = False) -> Dict[str, Any]:
+        """Perform a quick health check against the local Ollama instance.
         
+        Args:
+            test_generation: If True, tests whether configured model can actually generate a token.
+
         Returns:
             dict containing:
                 - is_running (bool): True if Ollama service responds
                 - available_models (list[str]): Names of downloaded local models
                 - model_installed (bool): True if configured primary model is available locally
+                - can_generate (bool): True if model can actively generate completions
                 - error_message (str | None): Friendly description if check fails
         """
         tags_url = f"{self.ollama_base_url}/api/tags"
@@ -126,18 +131,35 @@ class Settings:
                     self.ollama_model == m or self.ollama_model == m.split(":")[0]
                     for m in available_models
                 )
+                can_generate = False
+                gen_error = None
+                if model_installed and test_generation:
+                    try:
+                        probe = requests.post(
+                            f"{self.ollama_base_url}/api/generate",
+                            json={"model": self.ollama_model, "prompt": "ping", "stream": False, "options": {"num_predict": 1}},
+                            timeout=3.5,
+                        )
+                        if probe.status_code == 200:
+                            can_generate = True
+                        else:
+                            gen_error = f"Model generation probe returned HTTP {probe.status_code}"
+                    except Exception as probe_err:
+                        gen_error = f"Model generation probe failed: {str(probe_err)}"
                 
                 return {
                     "is_running": True,
                     "available_models": available_models,
                     "model_installed": model_installed,
-                    "error_message": None,
+                    "can_generate": can_generate if test_generation else model_installed,
+                    "error_message": gen_error,
                 }
             else:
                 return {
                     "is_running": False,
                     "available_models": [],
                     "model_installed": False,
+                    "can_generate": False,
                     "error_message": f"Ollama returned HTTP status {response.status_code}",
                 }
         except requests.exceptions.ConnectionError:
@@ -145,6 +167,7 @@ class Settings:
                 "is_running": False,
                 "available_models": [],
                 "model_installed": False,
+                "can_generate": False,
                 "error_message": (
                     f"Could not connect to Ollama at {self.ollama_base_url}. "
                     "Make sure Ollama is installed and running (`ollama serve`)."
@@ -155,6 +178,7 @@ class Settings:
                 "is_running": False,
                 "available_models": [],
                 "model_installed": False,
+                "can_generate": False,
                 "error_message": f"Connection to Ollama at {self.ollama_base_url} timed out.",
             }
         except Exception as exc:
@@ -162,6 +186,7 @@ class Settings:
                 "is_running": False,
                 "available_models": [],
                 "model_installed": False,
+                "can_generate": False,
                 "error_message": f"Unexpected error checking Ollama: {str(exc)}",
             }
 

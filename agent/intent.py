@@ -427,7 +427,7 @@ def classify_intent(user_text: str, llm=None) -> str:
     if effective_llm is None:
         try:
             from config.llm_provider import get_llm
-            effective_llm = get_llm(temperature=0.0)
+            effective_llm = get_llm(temperature=0.0, max_tokens=20)
         except Exception:
             effective_llm = None
 

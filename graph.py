@@ -147,8 +147,8 @@ create_crisis_escalation_node = create_crisis_node
 
 
 def create_intent_node(llm=None, use_simulation: bool = False):
-    """Create intent classification node."""
-    _llm = None if use_simulation else (llm or get_llm())
+    """Create intent classification node with rapid, bounded token prediction."""
+    _llm = None if use_simulation else (llm or get_llm(max_tokens=20))
     def intent_node(state: AgentState) -> Dict[str, Any]:
         intent = classify_intent(state.get("user_input", ""), llm=_llm)
         return {"detected_intent": intent}
@@ -156,8 +156,8 @@ def create_intent_node(llm=None, use_simulation: bool = False):
 
 
 def create_emotion_node(llm=None, use_simulation: bool = False):
-    """Create emotion analysis node."""
-    _llm = None if use_simulation else (llm or get_llm())
+    """Create emotion analysis node with rapid, bounded token prediction."""
+    _llm = None if use_simulation else (llm or get_llm(max_tokens=20))
     def emotion_node(state: AgentState) -> Dict[str, Any]:
         emotion = classify_emotion(state.get("user_input", ""), llm=_llm)
         return {"detected_emotion": emotion}
@@ -699,6 +699,11 @@ def send_message(
         "emergency_call": result.get("emergency_call"),
         "vision_result": result.get("vision_result"),
         "llm_provider": provider_name,
+        "provider_requested": meta.get("provider_requested", "Auto"),
+        "provider_used": meta.get("provider_used", provider_name),
+        "is_fallback": meta.get("is_fallback", False),
+        "error_category": meta.get("error_category"),
+        "diagnostic_message": meta.get("diagnostic_message"),
         "llm_model": model_name,
         "latency": latency,
         "is_truncated": meta.get("truncated", False),

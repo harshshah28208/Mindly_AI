@@ -121,7 +121,7 @@ class DynamicLocalResponseEngine:
                 "Whatever is on your heart or mind today, this is your safe space. How are you feeling right now?"
             )
 
-        # Affirmative continuations ("yes", "sure", "please", "yeah", "ok", "yes sure")
+        # Affirmative continuations ("yes", "sure", "please", "yeah", "ok", "yes sure", "tell me more")
         if re.search(r"^(?:yes|yeah|yep|sure|please|ok|okay|yes\s+sure|go\s+ahead|tell\s+me\s+more|how|what\s+can\s+i\s+do)[\s.?!]*$", lower):
             # Check previous conversation context to see what they are responding to
             prev_ai_text = ""
@@ -145,6 +145,28 @@ class DynamicLocalResponseEngine:
                     "4. Exhale softly through your mouth for **4 seconds**.\n\n"
                     "Notice that quiet release. How does your body feel after that breath?"
                 )
+            elif any(k in prev_ai_text for k in ["migraine", "headache", "cephalalgia"]):
+                return (
+                    f"Continuing on migraine management{name_suffix}:\n\n"
+                    "Clinical evidence underscores three pillars for managing migraine episodes:\n"
+                    "1. **Sensory Rest**: Rest immediately in a cool, dark, and silent environment with a cold compress on the forehead.\n"
+                    "2. **Trigger Tracking**: Keep a symptom log noting sleep regularity, hydration, caffeine intake, and screen exposure.\n"
+                    "3. **Clinical Evaluation**: Consult a neurologist or physician for targeted abortive therapies (such as triptans) if attacks recur frequently."
+                )
+            elif any(k in prev_ai_text for k in ["stomach", "acidity", "gastric", "abdominal", "gerd", "acid reflux"]):
+                return (
+                    f"Continuing on digestive wellness and the brain-gut axis{name_suffix}:\n\n"
+                    "1. **Brain-Gut Connection**: The enteric nervous system is wired directly to emotional centers via the vagus nerve. Heightened stress directly provokes gastric acid hypersecretion and visceral cramping.\n"
+                    "2. **Comfort Measures**: Remain upright for at least 2 hours after meals, sip warm water, and avoid spicy or acidic triggers.\n"
+                    "3. **When to Seek Evaluation**: Consult a physician promptly if you experience severe unremitting pain, difficulty swallowing, or fever."
+                )
+            elif any(k in prev_ai_text for k in ["shoulder", "knee", "joint", "back pain", "muscle", "strain"]):
+                return (
+                    f"Continuing on musculoskeletal comfort and strain care{name_suffix}:\n\n"
+                    "1. **R.I.C.E. Protocol**: Rest the affected joint, apply cold packs (15-20 min intervals), use gentle support/compression, and keep elevated when resting.\n"
+                    "2. **Gentle Mobility**: Avoid heavy lifting or awkward posture, but maintain gentle pain-free range of motion.\n"
+                    "3. **Clinical Advisory**: Seek professional orthopedic or physiotherapy evaluation if there is visible deformity, severe swelling, or inability to bear weight."
+                )
             elif any(k in prev_ai_text for k in ["viva", "vivas", "exam", "exams", "study", "workload", "deadline"]):
                 return (
                     f"Let's break your preparation down so it feels manageable{name_suffix}.\n\n"
@@ -165,6 +187,48 @@ class DynamicLocalResponseEngine:
             return (
                 f"You are very welcome{name_suffix}! I am always here to support your peace of mind and clarity. "
                 "Reach out whenever you need a calm listening ear or grounding guidance."
+            )
+
+        # Factual and educational health definitions (prevents generic empathy fallback for factual inquiries)
+        if re.search(r"\b(?:what\s+(?:is|are)|define|meaning\s+of|explain)\s+(?:anxiety|anxious)\b", lower):
+            return (
+                "**Anxiety** is a natural neurobiological and psychological stress response mediated by the autonomic nervous system. "
+                "While acute anxiety is adaptive (sharpening attention and alertness during challenges), persistent anxiety involves chronic autonomic arousal "
+                "(elevated heart rate, muscular tension, shallow respiration) and cognitive rumination.\n\n"
+                "**Core Aspects of Anxiety:**\n"
+                "• **Physiological**: Sympathetic nervous system activation ('fight-or-flight'), adrenaline release, and visceral restlessness.\n"
+                "• **Cognitive**: Anticipatory worry, catastrophizing, and hypervigilance.\n"
+                "• **Evidence-Based Support**: Diaphragmatic breathing (such as Box Breathing), progressive somatic grounding, cognitive reframing, and professional clinical consultation if it interferes with daily functioning."
+            )
+
+        if re.search(r"\b(?:what\s+(?:is|are)|define|meaning\s+of|explain)\s+(?:depression|depressed)\b", lower):
+            return (
+                "**Depression** (Major Depressive Disorder) is a recognized clinical mood condition characterized by persistent low mood, emotional numbness, "
+                "and anhedonia (the loss of pleasure or interest in previously enjoyable activities) lasting two weeks or longer.\n\n"
+                "**Common Characteristics:**\n"
+                "• **Somatic & Energy Changes**: Persistent fatigue, disruptions in sleep architecture (insomnia or hypersomnia), and appetite shifts.\n"
+                "• **Cognitive Patterns**: Feelings of worthlessness, excessive guilt, and impaired concentration.\n"
+                "• **Clinical Approaches**: Cognitive Behavioral Therapy (CBT), behavioral activation routines, social connection, and consultation with medical professionals."
+            )
+
+        if re.search(r"\b(?:what\s+(?:is|are)|define|meaning\s+of|explain)\s+(?:stress|burnout)\b", lower):
+            return (
+                "**Stress** is the body's non-specific physiological and psychological reaction to external demands, transitions, or challenges. "
+                "When a stressor occurs, the hypothalamic-pituitary-adrenal (HPA) axis activates, elevating cortisol and adrenaline to mobilize physical resources.\n\n"
+                "**Managing Stress Effectively:**\n"
+                "• **Pacing**: Establishing clear cognitive boundaries between study/work and recovery time.\n"
+                "• **Somatic Reset**: Engaging in 4-second box breathing or a 5-minute walk to facilitate vagal nerve tone.\n"
+                "• **Task Chunking**: Breaking complex responsibilities into single, manageable micro-steps."
+            )
+
+        if re.search(r"\b(?:what\s+causes\s+(?:a\s+)?migraine|causes\s+of\s+(?:a\s+)?migraine|what\s+is\s+(?:a\s+)?migraine)\b", lower):
+            return (
+                "A **migraine** is a primary neurological disorder characterized by recurrent attacks of moderate-to-severe throbbing or pulsating headache, "
+                "most frequently unilateral and often accompanied by nausea, vomiting, photophobia (light sensitivity), and phonophobia (sound sensitivity).\n\n"
+                "**Primary Etiology & Triggers:**\n"
+                "• **Neurovascular Activation**: Involves the trigeminovascular system, where abnormal nerve signaling causes localized neurogenic inflammation and vascular dilation.\n"
+                "• **Neurochemical Shifts**: Fluctuations in neurotransmitters, especially serotonin (5-HT) and calcitonin gene-related peptide (CGRP).\n"
+                "• **Common Triggers**: Disrupted sleep cycles, psychological stress, skipped meals, sensory stimuli (bright lights, loud sounds), and hormonal variations."
             )
 
         # Dynamic, contextual empathetic reflection based on user's exact input
@@ -198,8 +262,12 @@ class UniversalChatModel:
 
     last_metadata: Dict[str, Any] = {
         "provider": "Dynamic Local Engine",
+        "provider_requested": "Auto",
+        "provider_used": "Dynamic Local Engine",
         "model": "",
         "latency": 0.0,
+        "is_fallback": False,
+        "error_category": None,
     }
 
     def __init__(
@@ -217,57 +285,48 @@ class UniversalChatModel:
         self.max_tokens = max_tokens or getattr(settings, "ollama_max_tokens", 512)
 
     def invoke(self, messages: List[BaseMessage]) -> AIMessage:
-        """Invoke LLM across available providers with automatic graceful fallback and truncation detection."""
+        """Invoke LLM across available providers respecting LLM_PROVIDER with predictable fallback and rich metadata."""
         t0 = time.time()
 
-        # 1. Check if Cloud OpenAI/Groq API key is present (from env, session_state, or st.secrets)
-        api_key = os.getenv("OPENAI_API_KEY", "").strip() or os.getenv("GROQ_API_KEY", "").strip()
-        openai_url = os.getenv("OPENAI_BASE_URL", "").strip()
+        # Determine effective provider mode
+        provider_mode = (self.provider or os.getenv("LLM_PROVIDER", getattr(settings, "llm_provider", "auto"))).strip().lower()
 
+        # Check fallback setting
+        fallback_enabled = getattr(settings, "llm_fallback_enabled", True)
+        fallback_env = os.getenv("LLM_FALLBACK_ENABLED")
+        if fallback_env is not None:
+            fallback_enabled = fallback_env.strip().lower() in ("true", "1", "yes")
+
+        # Resolve cloud API key if present (env, session_state, or st.secrets)
+        cloud_api_key = os.getenv("OPENAI_API_KEY", "").strip() or os.getenv("GROQ_API_KEY", "").strip()
+        openai_url = os.getenv("OPENAI_BASE_URL", "").strip()
         try:
             import sys
             if "streamlit" in sys.modules:
                 st = sys.modules["streamlit"]
-                if not api_key and hasattr(st, "session_state"):
-                    api_key = str(st.session_state.get("cloud_api_key") or st.session_state.get("cloud_key_input_field") or "").strip()
-                if not api_key:
+                if hasattr(st, "session_state"):
+                    sess_provider = st.session_state.get("llm_provider")
+                    if sess_provider and not self.provider:
+                        provider_mode = str(sess_provider).strip().lower()
+                    if not cloud_api_key:
+                        cloud_api_key = str(st.session_state.get("cloud_api_key") or st.session_state.get("cloud_key_input_field") or "").strip()
+                    if "llm_fallback_enabled" in st.session_state:
+                        fallback_enabled = bool(st.session_state.get("llm_fallback_enabled"))
+                if not cloud_api_key:
                     try:
-                        api_key = str(st.secrets.get("GROQ_API_KEY", "") or st.secrets.get("OPENAI_API_KEY", "")).strip()
+                        cloud_api_key = str(st.secrets.get("GROQ_API_KEY", "") or st.secrets.get("OPENAI_API_KEY", "")).strip()
                     except Exception:
                         pass
         except Exception:
             pass
 
-        if api_key:
-            if api_key.startswith("gsk_"):
-                openai_url = openai_url or "https://api.groq.com/openai/v1"
-                os.environ["GROQ_API_KEY"] = api_key
-            else:
-                os.environ["OPENAI_API_KEY"] = api_key
-
-            try:
-                cloud_resp, model_used, finish_reason, is_truncated = self._invoke_openai_compatible(messages, api_key, openai_url)
-                if cloud_resp:
-                    dt = round(time.time() - t0, 2)
-                    provider_tag = "Groq" if ("groq" in (openai_url or "").lower() or api_key.startswith("gsk_")) else "OpenAI"
-                    UniversalChatModel.last_metadata = {
-                        "provider": provider_tag,
-                        "model": model_used,
-                        "latency": dt,
-                        "finish_reason": finish_reason,
-                        "truncated": is_truncated,
-                        "max_tokens": self.max_tokens,
-                    }
-                    return AIMessage(
-                        content=cloud_resp,
-                        response_metadata=UniversalChatModel.last_metadata,
-                    )
-            except Exception as e:
-                print(f"[Cloud LLM Exception]: {e}")
-
-        # 2. Check Local Ollama via fast native HTTP /api/chat with reasonable bounded token count
-        health = settings.check_ollama_health()
-        if health["is_running"]:
+        # Helper: Attempt Local Ollama
+        def _try_ollama():
+            health = settings.check_ollama_health()
+            if not health["is_running"]:
+                return None, "connection_error", f"Could not connect to Ollama at {self.base_url}. Service offline."
+            if not health["model_installed"]:
+                return None, "model_missing", f"Model '{self.model}' is not installed in local Ollama."
             try:
                 payload_msgs = []
                 for m in messages:
@@ -286,7 +345,7 @@ class UniversalChatModel:
                         "stream": False,
                         "options": {
                             "temperature": self.temperature,
-                            "num_predict": self.max_tokens,  # Configurable token count prevents abrupt truncations
+                            "num_predict": self.max_tokens,
                         },
                     },
                     timeout=85.0,
@@ -297,7 +356,6 @@ class UniversalChatModel:
                     done_reason = data.get("done_reason", "stop")
                     eval_count = data.get("eval_count", 0)
 
-                    # Detect truncation: explicit length limit or abrupt cutoff
                     is_length_limit = (done_reason == "length") or (eval_count > 0 and eval_count >= self.max_tokens)
                     is_abrupt_cutoff = False
                     if content and len(content) > 30:
@@ -307,40 +365,221 @@ class UniversalChatModel:
                             is_abrupt_cutoff = is_length_limit
 
                     is_truncated = is_length_limit or is_abrupt_cutoff
+                    return (content, done_reason, eval_count, is_truncated), None, None
+                else:
+                    return None, "api_error", f"Ollama HTTP {resp.status_code}"
+            except requests.exceptions.Timeout:
+                return None, "timeout", "Ollama request timed out after 85 seconds"
+            except requests.exceptions.ConnectionError:
+                return None, "connection_error", f"Connection to Ollama at {self.base_url} failed"
+            except Exception as exc:
+                return None, "unknown_error", f"Ollama error: {str(exc)}"
 
-                    if content:
-                        dt = round(time.time() - t0, 2)
-                        UniversalChatModel.last_metadata = {
-                            "provider": "Local Ollama",
-                            "model": self.model,
-                            "latency": dt,
-                            "finish_reason": done_reason,
-                            "eval_count": eval_count,
-                            "truncated": is_truncated,
-                            "max_tokens": self.max_tokens,
-                        }
-                        return AIMessage(
-                            content=content,
-                            response_metadata=UniversalChatModel.last_metadata,
-                        )
-            except Exception as e:
-                print(f"[Ollama Error]: {e}")
+        # Helper: Attempt Cloud API
+        def _try_cloud():
+            if not cloud_api_key:
+                return None, "missing_api_key", "No cloud API key configured."
+            try:
+                cloud_resp, model_used, finish_reason, is_truncated = self._invoke_openai_compatible(messages, cloud_api_key, openai_url)
+                if cloud_resp:
+                    provider_tag = "Groq" if ("groq" in (openai_url or "").lower() or cloud_api_key.startswith("gsk_")) else "OpenAI"
+                    return (cloud_resp, model_used, finish_reason, is_truncated, provider_tag), None, None
+                else:
+                    return None, "api_error", "Cloud LLM returned empty or non-200 response"
+            except requests.exceptions.Timeout:
+                return None, "timeout", "Cloud API request timed out"
+            except Exception as exc:
+                return None, "unknown_error", f"Cloud API error: {str(exc)}"
 
-        # 3. Dynamic Smart Local Engine (Zero dependency, instant, contextual fallback)
-        dynamic_text = DynamicLocalResponseEngine.generate(messages)
-        dt = round(time.time() - t0, 2)
-        UniversalChatModel.last_metadata = {
-            "provider": "Dynamic Local Engine",
-            "model": "rule-synthesis",
-            "latency": dt,
-            "finish_reason": "stop",
-            "truncated": False,
-            "max_tokens": self.max_tokens,
-        }
-        return AIMessage(
-            content=dynamic_text,
-            response_metadata=UniversalChatModel.last_metadata,
-        )
+        # Branch 1: Explicit Local Ollama mode
+        if provider_mode in ["ollama", "local"]:
+            res, err_cat, err_msg = _try_ollama()
+            dt = round(time.time() - t0, 2)
+            if res:
+                content, done_reason, eval_count, is_truncated = res
+                UniversalChatModel.last_metadata = {
+                    "provider_requested": "Local Ollama",
+                    "provider_used": "Local Ollama",
+                    "provider": "Local Ollama",
+                    "model": self.model,
+                    "latency": dt,
+                    "finish_reason": done_reason,
+                    "eval_count": eval_count,
+                    "truncated": is_truncated,
+                    "is_fallback": False,
+                    "error_category": None,
+                    "max_tokens": self.max_tokens,
+                }
+                return AIMessage(content=content, response_metadata=UniversalChatModel.last_metadata)
+            else:
+                if fallback_enabled:
+                    dynamic_text = DynamicLocalResponseEngine.generate(messages)
+                    UniversalChatModel.last_metadata = {
+                        "provider_requested": "Local Ollama",
+                        "provider_used": "Dynamic Local Engine (Fallback)",
+                        "provider": "Dynamic Local Engine",
+                        "model": "rule-synthesis",
+                        "latency": dt,
+                        "finish_reason": "stop",
+                        "truncated": False,
+                        "is_fallback": True,
+                        "error_category": err_cat,
+                        "diagnostic_message": f"Local Ollama failed ({err_cat}: {err_msg}). Gracefully degraded to local rule-synthesis.",
+                        "max_tokens": self.max_tokens,
+                    }
+                    return AIMessage(content=dynamic_text, response_metadata=UniversalChatModel.last_metadata)
+                else:
+                    diagnostic_text = (
+                        f"⚠️ **Provider Error**: Configured provider `Local Ollama` ({self.model}) failed ({err_cat}). "
+                        f"{err_msg}\n\nAutomatic fallback is disabled. Please verify that `ollama serve` is active."
+                    )
+                    UniversalChatModel.last_metadata = {
+                        "provider_requested": "Local Ollama",
+                        "provider_used": "None",
+                        "provider": "Error Diagnostic",
+                        "model": self.model,
+                        "latency": dt,
+                        "finish_reason": "error",
+                        "truncated": False,
+                        "is_fallback": False,
+                        "error_category": err_cat,
+                        "diagnostic_message": diagnostic_text,
+                        "max_tokens": self.max_tokens,
+                    }
+                    return AIMessage(content=diagnostic_text, response_metadata=UniversalChatModel.last_metadata)
+
+        # Branch 2: Explicit Cloud mode (Groq or OpenAI)
+        elif provider_mode in ["groq", "openai", "cloud"]:
+            res, err_cat, err_msg = _try_cloud()
+            dt = round(time.time() - t0, 2)
+            if res:
+                content, model_used, finish_reason, is_truncated, provider_tag = res
+                UniversalChatModel.last_metadata = {
+                    "provider_requested": provider_mode.capitalize(),
+                    "provider_used": provider_tag,
+                    "provider": provider_tag,
+                    "model": model_used,
+                    "latency": dt,
+                    "finish_reason": finish_reason,
+                    "truncated": is_truncated,
+                    "is_fallback": False,
+                    "error_category": None,
+                    "max_tokens": self.max_tokens,
+                }
+                return AIMessage(content=content, response_metadata=UniversalChatModel.last_metadata)
+            else:
+                if fallback_enabled:
+                    dynamic_text = DynamicLocalResponseEngine.generate(messages)
+                    UniversalChatModel.last_metadata = {
+                        "provider_requested": provider_mode.capitalize(),
+                        "provider_used": "Dynamic Local Engine (Fallback)",
+                        "provider": "Dynamic Local Engine",
+                        "model": "rule-synthesis",
+                        "latency": dt,
+                        "finish_reason": "stop",
+                        "truncated": False,
+                        "is_fallback": True,
+                        "error_category": err_cat,
+                        "diagnostic_message": f"Cloud provider failed ({err_cat}: {err_msg}). Gracefully degraded to local rule-synthesis.",
+                        "max_tokens": self.max_tokens,
+                    }
+                    return AIMessage(content=dynamic_text, response_metadata=UniversalChatModel.last_metadata)
+                else:
+                    diagnostic_text = (
+                        f"⚠️ **Provider Error**: Configured cloud provider failed ({err_cat}). "
+                        f"{err_msg}\n\nAutomatic fallback is disabled. Please verify your API key and network connection."
+                    )
+                    UniversalChatModel.last_metadata = {
+                        "provider_requested": provider_mode.capitalize(),
+                        "provider_used": "None",
+                        "provider": "Error Diagnostic",
+                        "model": "cloud",
+                        "latency": dt,
+                        "finish_reason": "error",
+                        "truncated": False,
+                        "is_fallback": False,
+                        "error_category": err_cat,
+                        "diagnostic_message": diagnostic_text,
+                        "max_tokens": self.max_tokens,
+                    }
+                    return AIMessage(content=diagnostic_text, response_metadata=UniversalChatModel.last_metadata)
+
+        # Branch 3: Auto mode (Cloud if key -> Ollama -> Fallback if enabled)
+        else:
+            if cloud_api_key:
+                cloud_res, cloud_err, _ = _try_cloud()
+                if cloud_res:
+                    content, model_used, finish_reason, is_truncated, provider_tag = cloud_res
+                    dt = round(time.time() - t0, 2)
+                    UniversalChatModel.last_metadata = {
+                        "provider_requested": "Auto",
+                        "provider_used": provider_tag,
+                        "provider": provider_tag,
+                        "model": model_used,
+                        "latency": dt,
+                        "finish_reason": finish_reason,
+                        "truncated": is_truncated,
+                        "is_fallback": False,
+                        "error_category": None,
+                        "max_tokens": self.max_tokens,
+                    }
+                    return AIMessage(content=content, response_metadata=UniversalChatModel.last_metadata)
+
+            ollama_res, ollama_err, ollama_detail = _try_ollama()
+            if ollama_res:
+                content, done_reason, eval_count, is_truncated = ollama_res
+                dt = round(time.time() - t0, 2)
+                UniversalChatModel.last_metadata = {
+                    "provider_requested": "Auto",
+                    "provider_used": "Local Ollama",
+                    "provider": "Local Ollama",
+                    "model": self.model,
+                    "latency": dt,
+                    "finish_reason": done_reason,
+                    "eval_count": eval_count,
+                    "truncated": is_truncated,
+                    "is_fallback": False,
+                    "error_category": None,
+                    "max_tokens": self.max_tokens,
+                }
+                return AIMessage(content=content, response_metadata=UniversalChatModel.last_metadata)
+
+            dt = round(time.time() - t0, 2)
+            if fallback_enabled:
+                dynamic_text = DynamicLocalResponseEngine.generate(messages)
+                UniversalChatModel.last_metadata = {
+                    "provider_requested": "Auto",
+                    "provider_used": "Dynamic Local Engine (Fallback)",
+                    "provider": "Dynamic Local Engine",
+                    "model": "rule-synthesis",
+                    "latency": dt,
+                    "finish_reason": "stop",
+                    "truncated": False,
+                    "is_fallback": True,
+                    "error_category": "all_providers_unavailable",
+                    "diagnostic_message": f"Auto mode: Local Ollama unavailable ({ollama_err}: {ollama_detail}). Fallback engaged.",
+                    "max_tokens": self.max_tokens,
+                }
+                return AIMessage(content=dynamic_text, response_metadata=UniversalChatModel.last_metadata)
+            else:
+                diagnostic_text = (
+                    "⚠️ **No Available LLM Provider**: Neither Cloud LLM nor Local Ollama was reachable, "
+                    "and heuristic fallback is disabled. Please start `ollama serve` or enter a free Groq key."
+                )
+                UniversalChatModel.last_metadata = {
+                    "provider_requested": "Auto",
+                    "provider_used": "None",
+                    "provider": "Error Diagnostic",
+                    "model": "none",
+                    "latency": dt,
+                    "finish_reason": "error",
+                    "truncated": False,
+                    "is_fallback": False,
+                    "error_category": "all_providers_unavailable",
+                    "diagnostic_message": diagnostic_text,
+                    "max_tokens": self.max_tokens,
+                }
+                return AIMessage(content=diagnostic_text, response_metadata=UniversalChatModel.last_metadata)
 
     def _invoke_openai_compatible(self, messages: List[BaseMessage], api_key: str, base_url: str) -> Tuple[Optional[str], str, str, bool]:
         target_url = (base_url or "https://api.openai.com/v1").rstrip("/") + "/chat/completions"

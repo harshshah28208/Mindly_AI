@@ -149,10 +149,15 @@ Open **`http://localhost:8501`** in your browser.
 
 | Variable | Default Value | Description |
 |---|---|---|
-| `LLM_PROVIDER` | `auto` | `auto`, `ollama`, `openai`, `groq`, or `dynamic` |
+| `LLM_PROVIDER` | `auto` | `auto` (best available), `ollama` (local only), `groq`, or `openai` |
+| `LLM_FALLBACK_ENABLED` | `true` | When `true`, gracefully degrades to rule-synthesis on failure; when `false`, shows diagnostic error |
+| `OLLAMA_MODEL` | `llama3.2:1b` | Primary local text model in Ollama |
+| `OLLAMA_MAX_TOKENS` | `512` | Default generation token budget (configurable; prevents abrupt truncation) |
+| `TOKEN_BUDGET_GREETINGS` | `150` | Fast token budget for greetings and brief check-ins (~1-2s latency) |
+| `TOKEN_BUDGET_NORMAL` | `512` | Standard token budget for complete, fully explained answers |
+| `TOKEN_BUDGET_DETAILED` | `1024` | Expanded token budget for multi-step guides and Gale clinical RAG |
 | `GROQ_API_KEY` | *(empty)* | Optional free Groq API key for ultra-fast Llama 3.3 70B inference |
 | `OPENAI_API_KEY`| *(empty)* | Optional OpenAI API key for GPT-4o-mini |
-| `OLLAMA_MODEL` | `llama3.2:1b` | Primary local text model name in Ollama |
 | `VISION_MODEL` | `llava` | Local vision model name in Ollama |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama service endpoint |
 | `MAX_EVAL_RETRIES` | `2` | Maximum replan iterations before final response |
@@ -161,24 +166,33 @@ Open **`http://localhost:8501`** in your browser.
 | `DB_PATH` | `data/app.db` | SQLite database file for memory, journal, and goals |
 | `ESCALATION_MODE` | `demo` | Escalation mode (`demo` simulated or `production`) |
 
+### Local Performance & Query Latency Optimization
+When running locally with CPU inference (e.g. `llama3.2:1b` on laptops):
+- **Bounded Classification Tokens**: Intent and emotion classification nodes use `max_tokens=20`, completing classification in ~0.2-0.5s rather than reserving 512 tokens.
+- **Dynamic Budgets**: Greetings complete in ~1.5s (150 tokens), standard questions complete in ~4-6s (512 tokens), and detailed medical RAG plans complete in ~10-20s (768-1024 tokens).
+- **Zero Paid Key Requirement**: Works 100% offline via local Ollama. Adding a free [Groq Cloud Key](https://console.groq.com) reduces inference latency to <1.0s.
+
 ---
 
 ## 7. Automated Testing & Verification
 
-Mindly includes **304 comprehensive unit, regression, safety, and integration tests**:
+Mindly includes comprehensive unit, regression, safety, and integration test suites:
 
 ```bash
-# Run all tests
-pytest
+# Run new Phase 1-6 comprehensive quality verification suite
+pytest tests/test_verified_agentic_quality.py -v
 
-# Run routing tests
-pytest tests/test_routing.py
+# Run response length and truncation constraint tests
+pytest tests/test_response_length_constraints.py -v
 
-# Run multimodal tests
-pytest tests/test_vision.py tests/test_voice.py
+# Run medical dynamic RAG tests
+pytest tests/test_medical_dynamic_qa.py -v
 
-# Run end-to-end user flow tests
-pytest tests/test_student_ui_flows.py
+# Run 13 canonical query routing table verification
+python scripts/test_expected_routing_table.py
+
+# Run all test suites
+pytest -v
 ```
 
 ---

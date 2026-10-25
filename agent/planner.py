@@ -191,18 +191,19 @@ def plan_action(
     # --------------------------------------------------------------------------
     # PRIORITY 6: GOAL / PLANNING REQUEST
     # --------------------------------------------------------------------------
-    if detected_intent == "GOAL_REQUEST":
-        return {
-            "selected_action": "USE_GOAL_TOOL",
-            "tool_name": "goal_tracker",
-            "reasoning_summary": "Priority 6 Goal: identified goal planning request; routed to habits and goals tracker.",
-        }
-
-    if detected_intent == "PLANNING_REQUEST":
+    if detected_intent in ["GOAL_REQUEST", "PLANNING_REQUEST"]:
+        # If user explicitly asks about goals, habits, or setting/tracking goals
+        if "goal" in lower or "habit" in lower or lower.startswith("/goal"):
+            return {
+                "selected_action": "USE_GOAL_TOOL",
+                "tool_name": "goal_tracker",
+                "reasoning_summary": "Priority 6 Goal: identified goal or habit request; routed to habits and goals tracker.",
+            }
+        # If user asks for study planning, focus, or concentration help without goal tracker
         return {
             "selected_action": "USE_COPING_TOOL",
             "tool_name": "coping_strategy",
-            "reasoning_summary": "Priority 6 Planning: identified study planning or routine request; routed to structured planning tool.",
+            "reasoning_summary": "Priority 6 Planning: identified study concentration and planning support; selected actionable coping tool.",
         }
 
     # Long-term memory vault requests
@@ -221,6 +222,16 @@ def plan_action(
             "selected_action": "DIRECT_RESPONSE",
             "tool_name": "direct_conversation",
             "reasoning_summary": "User explicitly requested listening without active somatic exercises; selected open empathetic listening.",
+        }
+
+    # --------------------------------------------------------------------------
+    # EDUCATIONAL / FACTUAL DEFINITIONS OF MENTAL WELLNESS CONCEPTS
+    # --------------------------------------------------------------------------
+    if bool(re.search(r"^(?:what\s+(?:is|are)|define|explain|meaning\s+of|tell\s+me\s+about)\s+(?:anxiety|depression|stress|mental\s+health|burnout|panic)\b", lower)):
+        return {
+            "selected_action": "DIRECT_RESPONSE",
+            "tool_name": "direct_conversation",
+            "reasoning_summary": "Identified educational definition inquiry; selected direct educational explanation.",
         }
 
     # --------------------------------------------------------------------------
@@ -260,8 +271,8 @@ def plan_action(
                 "tool_name": "coping_strategy",
                 "reasoning_summary": "Priority 8 Coping: detected academic, exam, or viva stress; selected structured coping tool.",
             }
-        # Context 2: Acute emotional anxiety or somatic exam distress -> Grounding tool
-        if detected_emotion in ["anxious", "overwhelmed"] or any(w in lower for w in ["very anxious", "anxiety", "panic"]):
+        # Context 2: Acute emotional anxiety or somatic distress -> Grounding tool
+        if detected_emotion in ["anxious", "overwhelmed"] or any(w in lower for w in ["very anxious", "severe anxiety", "panic"]):
             return {
                 "selected_action": "USE_GROUNDING_TOOL",
                 "tool_name": "box_breathing" if "exam" in lower else "guided_reflection",
