@@ -329,7 +329,7 @@ def classify_intent_heuristic(user_text: str) -> str:
         return "GOAL_REQUEST"
 
     # Minimal fallback for basic wellness
-    if "breathe" in lower or "grounding" in lower:
+    if any(w in lower for w in ["breathe", "breathing", "breath", "grounding", "box breathing"]):
         return "GROUNDING_REQUEST"
     if any(w in lower for w in ["cope", "stress", "anxious", "sad", "overwhelm"]):
         return "EMOTIONAL_SUPPORT"
@@ -416,6 +416,13 @@ def classify_intent(user_text: str, llm=None) -> str:
         "hello mindly", "hi mindly", "hey mindly", "thank you", "thanks", "nice to meet you",
         "good morning", "good evening", "good afternoon"
     ]) or lower_clean in ["hello", "hi", "hey", "how are you", "how are you doing", "how are you doing today?"]:
+        return "GENERAL_CONVERSATION"
+
+    # Educational definition questions ("what is anxiety?", "what is depression?")
+    if any(lower_clean.startswith(p) for p in [
+        "what is anxiety", "what is depression", "what is stress", "what is burnout", "what is panic",
+        "define anxiety", "define depression", "explain anxiety", "explain depression"
+    ]):
         return "GENERAL_CONVERSATION"
 
     # Stage 1 (Cont): Physical health symptoms must not be routed to mindfulness/emotional simply because of scared/fear words

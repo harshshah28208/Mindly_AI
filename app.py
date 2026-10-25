@@ -149,6 +149,7 @@ with st.sidebar:
             cloud_key = st.secrets.get("GROQ_API_KEY", "") or st.secrets.get("OPENAI_API_KEY", "")
         except Exception:
             cloud_key = ""
+    has_api = bool(cloud_key and str(cloud_key).strip())
 
     # Provider mode selector & Fallback toggle
     current_provider_mode = st.session_state.get(

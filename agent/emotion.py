@@ -87,6 +87,16 @@ def classify_emotion(user_text: str, llm=None) -> str:
     if heuristic != "neutral":
         return heuristic
 
+    # Fast path: informational, definition, or conversational questions are neutral
+    # This prevents wasting 2-4 seconds on local CPU asking an LLM for obvious neutral state
+    lower = user_text.lower().strip()
+    if any(lower.startswith(prefix) for prefix in [
+        "what is", "what are", "what causes", "why does", "why do", "how does", "how do",
+        "how to", "explain", "define", "tell me about", "who is", "who are", "can you",
+        "is there", "hi", "hello", "hey", "good morning", "good evening", "thank"
+    ]):
+        return "neutral"
+
     if llm is not None:
         try:
             messages = [
