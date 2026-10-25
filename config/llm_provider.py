@@ -214,10 +214,10 @@ class UniversalChatModel:
         self.base_url = base_url or settings.ollama_base_url
         self.temperature = temperature if temperature is not None else settings.ollama_temperature
         self.provider = provider or getattr(settings, "llm_provider", "auto")
-        self.max_tokens = max_tokens or getattr(settings, "ollama_max_tokens", 450)
+        self.max_tokens = max_tokens or getattr(settings, "ollama_max_tokens", 512)
 
     def invoke(self, messages: List[BaseMessage]) -> AIMessage:
-        """Invoke LLM across available providers with automatic graceful fallback."""
+        """Invoke LLM across available providers with automatic graceful fallback and truncation detection."""
         t0 = time.time()
 
         # 1. Check if Cloud OpenAI/Groq API key is present (from env, session_state, or st.secrets)
@@ -246,7 +246,7 @@ class UniversalChatModel:
                 os.environ["OPENAI_API_KEY"] = api_key
 
             try:
-                cloud_resp, model_used = self._invoke_openai_compatible(messages, api_key, openai_url)
+                cloud_resp, model_used, finish_reason, is_truncated = self._invoke_openai_compatible(messages, api_key, openai_url)
                 if cloud_resp:
                     dt = round(time.time() - t0, 2)
                     provider_tag = "Groq" if ("groq" in (openai_url or "").lower() or api_key.startswith("gsk_")) else "OpenAI"
@@ -254,6 +254,9 @@ class UniversalChatModel:
                         "provider": provider_tag,
                         "model": model_used,
                         "latency": dt,
+                        "finish_reason": finish_reason,
+                        "truncated": is_truncated,
+                        "max_tokens": self.max_tokens,
                     }
                     return AIMessage(
                         content=cloud_resp,
@@ -286,17 +289,35 @@ class UniversalChatModel:
                             "num_predict": self.max_tokens,  # Configurable token count prevents abrupt truncations
                         },
                     },
-                    timeout=75.0,
+                    timeout=85.0,
                 )
                 if resp.status_code == 200:
                     data = resp.json()
                     content = data.get("message", {}).get("content", "").strip()
+                    done_reason = data.get("done_reason", "stop")
+                    eval_count = data.get("eval_count", 0)
+
+                    # Detect truncation: explicit length limit or abrupt cutoff
+                    is_length_limit = (done_reason == "length") or (eval_count > 0 and eval_count >= self.max_tokens)
+                    is_abrupt_cutoff = False
+                    if content and len(content) > 30:
+                        if re.search(r"[,:;\-\(\[\{]\s*$", content) or re.search(r"\b(?:and|or|the|with|to|in|of|that|because|step|such\s+as)\s*$", content, re.IGNORECASE):
+                            is_abrupt_cutoff = True
+                        elif content[-1].isalnum() and not content.endswith((".", "!", "?", "\"", "'", "*", "`", "#")):
+                            is_abrupt_cutoff = is_length_limit
+
+                    is_truncated = is_length_limit or is_abrupt_cutoff
+
                     if content:
                         dt = round(time.time() - t0, 2)
                         UniversalChatModel.last_metadata = {
                             "provider": "Local Ollama",
                             "model": self.model,
                             "latency": dt,
+                            "finish_reason": done_reason,
+                            "eval_count": eval_count,
+                            "truncated": is_truncated,
+                            "max_tokens": self.max_tokens,
                         }
                         return AIMessage(
                             content=content,
@@ -312,13 +333,16 @@ class UniversalChatModel:
             "provider": "Dynamic Local Engine",
             "model": "rule-synthesis",
             "latency": dt,
+            "finish_reason": "stop",
+            "truncated": False,
+            "max_tokens": self.max_tokens,
         }
         return AIMessage(
             content=dynamic_text,
             response_metadata=UniversalChatModel.last_metadata,
         )
 
-    def _invoke_openai_compatible(self, messages: List[BaseMessage], api_key: str, base_url: str) -> Tuple[Optional[str], str]:
+    def _invoke_openai_compatible(self, messages: List[BaseMessage], api_key: str, base_url: str) -> Tuple[Optional[str], str, str, bool]:
         target_url = (base_url or "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
         is_groq = "groq" in target_url.lower() or api_key.startswith("gsk_")
         if is_groq:
@@ -351,12 +375,16 @@ class UniversalChatModel:
             res = requests.post(target_url, json=body, headers=headers, timeout=20.0)
             if res.status_code == 200:
                 data = res.json()
-                return data["choices"][0]["message"]["content"], model_name
+                choice = data["choices"][0]
+                resp_content = choice["message"]["content"]
+                finish_reason = choice.get("finish_reason", "stop")
+                is_truncated = (finish_reason == "length")
+                return resp_content, model_name, finish_reason, is_truncated
             else:
                 print(f"[Cloud LLM HTTP {res.status_code}]: {res.text[:200]}")
         except Exception as exc:
             print(f"[Cloud LLM Request Error]: {exc}")
-        return None, model_name
+        return None, model_name, "error", False
 
 
 def get_universal_llm(

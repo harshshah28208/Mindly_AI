@@ -41,7 +41,8 @@ def generate_coping_strategies(user_text: str, emotion: str = "stressed", llm=No
     if llm is None:
         try:
             from config.llm_provider import get_llm
-            llm = get_llm(model=settings.coping_model)
+            budget = settings.determine_token_budget(user_text, intent="COPING_REQUEST")
+            llm = get_llm(model=settings.coping_model, max_tokens=budget)
         except Exception:
             llm = None
 

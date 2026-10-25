@@ -58,12 +58,16 @@ def get_llm(
     model: Optional[str] = None,
     base_url: Optional[str] = None,
     temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    **kwargs,
 ):
     """Instantiate and return configured universal Chat LLM client."""
     return get_universal_llm(
         model=model or settings.ollama_model,
         base_url=base_url or settings.ollama_base_url,
         temperature=temperature if temperature is not None else settings.ollama_temperature,
+        max_tokens=max_tokens,
+        **kwargs,
     )
 
 
@@ -188,12 +192,22 @@ def create_grounding_node(llm=None, use_simulation: bool = False):
     """Create grounding tool execution node."""
     _llm = None if use_simulation else (llm or get_llm())
     def grounding_node(state: AgentState) -> Dict[str, Any]:
+        user_text = state.get("user_input", "")
+        node_llm = _llm
+        if not use_simulation and llm is None:
+            try:
+                budget = settings.determine_token_budget(user_text, intent="GROUNDING_REQUEST")
+                if state.get("retry_count", 0) > 0:
+                    budget = max(budget, settings.token_budget_detailed)
+                node_llm = get_llm(max_tokens=budget)
+            except Exception:
+                node_llm = _llm
         try:
             output = interactive_grounding_tool(
                 activity_type=state.get("tool_name"),
                 emotion=state.get("detected_emotion", "stressed"),
-                user_text=state.get("user_input", ""),
-                llm=_llm,
+                user_text=user_text,
+                llm=node_llm,
             )
         except Exception as exc:
             output = f"Error: tool failed - {str(exc)}"
@@ -205,11 +219,21 @@ def create_coping_node(coping_llm=None, use_simulation: bool = False):
     """Create coping tool execution node."""
     _llm = None if use_simulation else (coping_llm or get_llm(model=settings.coping_model))
     def coping_node(state: AgentState) -> Dict[str, Any]:
+        user_text = state.get("user_input", "")
+        node_llm = _llm
+        if not use_simulation and coping_llm is None:
+            try:
+                budget = settings.determine_token_budget(user_text, intent="COPING_REQUEST")
+                if state.get("retry_count", 0) > 0:
+                    budget = max(budget, settings.token_budget_detailed)
+                node_llm = get_llm(model=settings.coping_model, max_tokens=budget)
+            except Exception:
+                node_llm = _llm
         try:
             output = generate_coping_strategies(
-                user_text=state.get("user_input", ""),
+                user_text=user_text,
                 emotion=state.get("detected_emotion", "stressed"),
-                llm=_llm,
+                llm=node_llm,
             )
         except Exception as exc:
             output = f"Error: tool failed - {str(exc)}"
@@ -238,10 +262,20 @@ def create_rag_node(llm=None, use_simulation: bool = False):
                 "retrieved_sources": [{"source": "Mindly Clinical Triage Guidance", "page": 1, "topic": "Urgent Medical Evaluation"}],
             }
 
+        node_llm = _llm
+        if not use_simulation and llm is None:
+            try:
+                budget = settings.determine_token_budget(user_text, intent="HEALTH_INFORMATION")
+                if state.get("retry_count", 0) > 0:
+                    budget = max(budget, settings.token_budget_detailed)
+                node_llm = get_llm(max_tokens=budget)
+            except Exception:
+                node_llm = _llm
+
         try:
             answer, chunks = execute_rag_query(
                 query=user_text,
-                llm=_llm,
+                llm=node_llm,
                 top_k=3,
                 detected_emotion=state.get("detected_emotion"),
             )
@@ -340,11 +374,21 @@ def create_direct_response_node(llm=None, use_simulation: bool = False):
             output = generate_direct_response(user_text, is_scope_notice=True)
             return {"tool_result": output}
 
+        node_llm = _llm
+        if not use_simulation and llm is None:
+            try:
+                budget = settings.determine_token_budget(user_text, intent=state.get("detected_intent", "GENERAL_CONVERSATION"))
+                if state.get("retry_count", 0) > 0:
+                    budget = max(budget, settings.token_budget_detailed)
+                node_llm = get_llm(max_tokens=budget)
+            except Exception:
+                node_llm = _llm
+
         try:
             output = generate_direct_response(
                 user_text=user_text,
                 messages=list(state.get("messages", [])),
-                llm=_llm,
+                llm=node_llm,
             )
         except Exception as exc:
             output = f"Error: tool failed - {str(exc)}"
@@ -356,6 +400,8 @@ def create_evaluator_node():
     """Create evaluator node with retry count tracking and safety validation."""
     def evaluator_node(state: AgentState) -> Dict[str, Any]:
         current_retries = state.get("retry_count", 0)
+        from config.llm_provider import UniversalChatModel
+        is_trunc = bool(state.get("is_truncated", False) or UniversalChatModel.last_metadata.get("truncated", False))
         eval_dict = evaluate_execution(
             user_input=state.get("user_input", ""),
             selected_action=state.get("selected_action", "DIRECT_RESPONSE"),
@@ -365,6 +411,7 @@ def create_evaluator_node():
             risk_level=state.get("risk_level", "LOW"),
             escalation_status=state.get("escalation_status"),
             tool_name=state.get("tool_name"),
+            is_truncated=is_trunc,
         )
         new_retries = current_retries + (1 if eval_dict["evaluation_result"] == "RETRY" else 0)
         return {
@@ -372,6 +419,7 @@ def create_evaluator_node():
             "evaluation_feedback": eval_dict.get("evaluation_feedback"),
             "retry_count": new_retries,
             "replan_count": new_retries,
+            "is_truncated": eval_dict.get("is_truncated", False),
         }
     return evaluator_node
 
@@ -653,4 +701,7 @@ def send_message(
         "llm_provider": provider_name,
         "llm_model": model_name,
         "latency": latency,
+        "is_truncated": meta.get("truncated", False),
+        "finish_reason": meta.get("finish_reason", "stop"),
+        "token_count": meta.get("eval_count", 0),
     }

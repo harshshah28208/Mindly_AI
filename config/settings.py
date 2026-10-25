@@ -5,6 +5,7 @@ Avoids hardcoding models, URLs, or secrets throughout the application.
 """
 
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import requests
@@ -41,10 +42,26 @@ class Settings:
         except ValueError:
             self.ollama_temperature = 0.7
 
+        # Configurable Generation Token Budgets (Phase 8: 100-200 for greetings, 300-512 normal, 700-1024 detailed)
         try:
-            self.ollama_max_tokens: int = int(os.getenv("OLLAMA_MAX_TOKENS", "180"))
+            self.ollama_max_tokens: int = int(os.getenv("OLLAMA_MAX_TOKENS", "512"))
         except ValueError:
-            self.ollama_max_tokens = 180
+            self.ollama_max_tokens = 512
+
+        try:
+            self.token_budget_greetings: int = int(os.getenv("TOKEN_BUDGET_GREETINGS", "150"))
+        except ValueError:
+            self.token_budget_greetings = 150
+
+        try:
+            self.token_budget_normal: int = int(os.getenv("TOKEN_BUDGET_NORMAL", "512"))
+        except ValueError:
+            self.token_budget_normal = 512
+
+        try:
+            self.token_budget_detailed: int = int(os.getenv("TOKEN_BUDGET_DETAILED", "1024"))
+        except ValueError:
+            self.token_budget_detailed = 1024
 
         try:
             self.max_eval_retries: int = int(os.getenv("MAX_EVAL_RETRIES", "2"))
@@ -164,6 +181,40 @@ class Settings:
             "configured_model": self.vision_model,
             "reason": None if has_vision else f"Model '{self.vision_model}' not found in Ollama.",
         }
+
+    def determine_token_budget(self, user_text: str, intent: Optional[str] = None) -> int:
+        """Dynamically determine token budget based on inquiry depth and intent:
+        - Greetings and simple conversation: ~100-200 tokens (token_budget_greetings = 150)
+        - Detailed explanations or step-by-step guidance: ~700-1024 tokens (token_budget_detailed = 1024)
+        - Normal questions: ~300-512 tokens (token_budget_normal = 512)
+        """
+        clean = (user_text or "").strip().lower()
+        if not clean:
+            return self.token_budget_greetings
+
+        # 1. Explicit requests for detailed explanations, multi-step guidance, or clinical health guides (budget: 700-1024)
+        detailed_triggers = [
+            "detail", "detailed", "in detail", "explain thoroughly", "comprehensive",
+            "step by step", "step-by-step", "steps", "walk me through", "deep dive",
+            "elaborate", "full plan", "action plan", "list all", "numbered list",
+            "break down every step", "detailed explanation", "exercise", "grounding",
+            "routine", "protocol", "guide", "how to cure", "how to handle", "what to do",
+            "what is the reason", "cure", "treatment",
+        ]
+        is_step_pattern = bool(re.search(r"\b\d+[-\s]?steps?\b", clean) or re.search(r"\b(?:five|four|three|six|ten)[-\s]?steps?\b", clean))
+        if is_step_pattern or any(trig in clean for trig in detailed_triggers):
+            return self.token_budget_detailed
+
+        # 2. Greetings and simple conversation (budget: 100-200)
+        is_greeting = clean in [
+            "hello", "hi", "hey", "how are you", "what is your name", "who are you",
+            "good morning", "good evening", "tell me a joke", "thank you", "thanks", "bye", "goodbye"
+        ] or (intent == "GENERAL_CONVERSATION" and len(clean.split()) <= 6)
+        if is_greeting:
+            return self.token_budget_greetings
+
+        # 3. Standard normal questions (budget: 300-512)
+        return self.token_budget_normal
 
 
 # Singleton settings instance

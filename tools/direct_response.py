@@ -88,7 +88,9 @@ def generate_direct_response(
     if llm is None:
         try:
             from config.llm_provider import get_llm
-            llm = get_llm()
+            from config.settings import settings
+            budget = settings.determine_token_budget(user_text, intent="GENERAL_CONVERSATION")
+            llm = get_llm(max_tokens=budget)
         except Exception:
             pass
 

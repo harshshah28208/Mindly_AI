@@ -12,7 +12,7 @@ Enforces:
 """
 
 import re
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 
 def evaluate_execution(
@@ -24,7 +24,8 @@ def evaluate_execution(
     risk_level: str = "LOW",
     escalation_status: Optional[str] = None,
     tool_name: Optional[str] = None,
-) -> Dict[str, str]:
+    is_truncated: bool = False,
+) -> Dict[str, Any]:
     """Evaluate tool output quality, safety compliance, groundedness, and clinical boundaries.
 
     Args:
@@ -36,9 +37,10 @@ def evaluate_execution(
         risk_level: 'LOW' | 'MEDIUM' | 'HIGH'.
         escalation_status: Status string from supervisor escalation service.
         tool_name: Specific sub-tool identifier.
+        is_truncated: Boolean flag indicating if LLM stopped due to token limit.
 
     Returns:
-        Dict with 'evaluation_result' ('PASS' or 'RETRY') and 'evaluation_feedback'.
+        Dict with 'evaluation_result' ('PASS' or 'RETRY'), 'evaluation_feedback', and 'is_truncated'.
     """
     # --------------------------------------------------------------------------
     # 1. HIGH-RISK SAFETY EVALUATION (Priority 1 Verification)
@@ -77,13 +79,40 @@ def evaluate_execution(
         }
 
     # --------------------------------------------------------------------------
-    # 3. EMPTY OR TRUNCATED TOOL RESULT
+    # 3. TRUNCATION & TOKEN-LIMIT INSPECTION (Phase 8 Requirement)
     # --------------------------------------------------------------------------
     if not tool_result or not tool_result.strip() or len(tool_result.strip()) < 20:
         return {
             "evaluation_result": "RETRY",
-            "evaluation_feedback": "Tool output was empty or insufficient; requesting alternative plan.",
+            "evaluation_feedback": "Tool output was empty or insufficient (< 20 characters); requesting alternative plan.",
+            "is_truncated": True,
         }
+
+    trimmed_result = tool_result.strip()
+    has_abrupt_dangling_ending = bool(
+        re.search(r"[,:;\-\(\[\{]\s*$", trimmed_result)
+        or re.search(r"\b(?:and|or|the|with|to|in|of|that|because|step)\s*$", trimmed_result, re.IGNORECASE)
+    )
+
+    if is_truncated or has_abrupt_dangling_ending:
+        return {
+            "evaluation_result": "RETRY",
+            "evaluation_feedback": "Generation stopped abruptly or reached token limit; retrying with expanded token budget and complete structure.",
+            "is_truncated": True,
+        }
+
+    # Verify requested multi-step completeness (e.g. "give me 5 steps")
+    steps_match = re.search(r"\b(\d+)\s+steps\b", user_input.lower())
+    if steps_match:
+        requested_count = int(steps_match.group(1))
+        # Count numbered steps in output (e.g. "1. ", "Step 1", "1)")
+        numbered_steps = len(re.findall(r"(?:^|\n)\s*(?:\d+[\.\)]|Step\s+\d+)", trimmed_result))
+        if requested_count > 1 and numbered_steps < requested_count:
+            return {
+                "evaluation_result": "RETRY",
+                "evaluation_feedback": f"User requested {requested_count} steps, but only {numbered_steps} were generated; retrying to provide all requested steps.",
+                "is_truncated": True,
+            }
 
     lower_result = tool_result.lower()
 

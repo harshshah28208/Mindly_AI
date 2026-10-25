@@ -85,29 +85,29 @@ def plan_action(
                 "tool_name": "gale_retriever",
                 "reasoning_summary": "Re-evaluating clinical query: ensuring comprehensive medical response from Gale Encyclopedia of Medicine.",
             }
-        elif previous_action == "USE_RAG_TOOL":
+        elif previous_action == "USE_COPING_TOOL":
             return {
                 "selected_action": "USE_COPING_TOOL",
                 "tool_name": "coping_strategy",
-                "reasoning_summary": "Re-evaluating user need: switching from knowledge retrieval to practical coping support.",
+                "reasoning_summary": "Replanning coping strategy: ensuring complete, fully numbered actionable guidance within token budget.",
             }
         elif previous_action == "USE_GROUNDING_TOOL":
             return {
-                "selected_action": "USE_COPING_TOOL",
-                "tool_name": "coping_strategy",
-                "reasoning_summary": "Re-evaluating user need: switching from grounding exercise to adaptive coping strategies.",
+                "selected_action": "USE_GROUNDING_TOOL",
+                "tool_name": "box_breathing" if "breath" in lower else "54321_grounding",
+                "reasoning_summary": "Replanning grounding tool: ensuring all somatic and sensory exercise steps are fully provided.",
             }
-        elif previous_action == "USE_COPING_TOOL":
+        elif previous_action == "USE_RAG_TOOL":
             return {
-                "selected_action": "DIRECT_RESPONSE",
-                "tool_name": "direct_conversation",
-                "reasoning_summary": "Re-evaluating user need: transitioning to direct compassionate listening.",
+                "selected_action": "USE_RAG_TOOL",
+                "tool_name": "gale_retriever",
+                "reasoning_summary": "Replanning clinical inquiry: generating full structured clinical guide.",
             }
         else:
             return {
-                "selected_action": "USE_GROUNDING_TOOL",
-                "tool_name": "guided_reflection",
-                "reasoning_summary": "Re-evaluating user need: providing gentle mindful reflection.",
+                "selected_action": "DIRECT_RESPONSE",
+                "tool_name": "direct_conversation",
+                "reasoning_summary": "Re-evaluating conversational need: providing complete, direct attuned guidance.",
             }
 
     # --------------------------------------------------------------------------

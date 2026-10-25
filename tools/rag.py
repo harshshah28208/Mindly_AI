@@ -121,6 +121,10 @@ def is_canned_refusal_or_insufficient(content: str) -> bool:
         if re.search(pat, lower):
             return True
 
+    # Detect abrupt dangling cutoffs (e.g. truncated mid-word or mid-sentence)
+    if re.search(r"[,:;\-\(\[\{]\s*$", content) or re.search(r"\b(?:and|or|the|with|to|in|of|that|because|step|e\.g\.|e)\s*$", content, re.IGNORECASE):
+        return True
+
     # Must contain essential clinical sections: overview, reason, and immediate action plan
     has_overview = "clinical overview" in lower or "what is happening" in lower
     has_reason = "what is the reason" in lower or "underlying" in lower or "etiology" in lower
@@ -303,7 +307,11 @@ def execute_rag_query(
     if effective_llm is None:
         try:
             from config.llm_provider import get_llm
-            effective_llm = get_llm()
+            from config.settings import settings
+            budget = settings.determine_token_budget(query, intent="HEALTH_INFORMATION")
+            # Clinical textbook synthesis requires adequate token budget for 5-part guide
+            budget = max(budget, 768)
+            effective_llm = get_llm(max_tokens=budget)
         except Exception:
             pass
 
@@ -326,7 +334,7 @@ def execute_rag_query(
             response = effective_llm.invoke(messages)
             content = str(response.content).strip()
 
-            # Reject canned refusals
+            # Reject canned refusals, truncated outputs, or missing clinical structure
             if content and not is_canned_refusal_or_insufficient(content):
                 final_answer = content
                 if has_emotional_context and any(w in lower_q for w in ["stomach", "gut", "abdominal", "digestive", "belly", "acidity"]) and "brain-gut axis" not in final_answer.lower():
@@ -338,6 +346,12 @@ def execute_rag_query(
                     )
                 if urgency_notice and urgency_notice not in final_answer:
                     final_answer = f"{final_answer}\n\n{urgency_notice}"
+                # Guarantee presence of red-flag warning signs section
+                if not any(k in final_answer.lower() for k in ["warning signs", "red-flag", "red flag", "emergency"]):
+                    final_answer = (
+                        final_answer + "\n\n⚠️ **Warning Signs Requiring Prompt Attention**:\n"
+                        "Seek medical evaluation if symptoms worsen, persist, or are accompanied by high fever, severe unremitting pain, or difficulty breathing."
+                    )
                 final_answer = final_answer + citations_str + disclaimer
                 return final_answer, chunks
         except Exception:

@@ -81,7 +81,9 @@ def interactive_grounding_tool(
     if llm is None and user_text:
         try:
             from config.llm_provider import get_llm
-            llm = get_llm()
+            from config.settings import settings
+            budget = settings.determine_token_budget(user_text, intent="GROUNDING_REQUEST")
+            llm = get_llm(max_tokens=budget)
         except Exception:
             llm = None
 
