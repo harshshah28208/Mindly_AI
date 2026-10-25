@@ -134,37 +134,79 @@ def is_canned_refusal_or_insufficient(content: str) -> bool:
 
 
 def get_suggested_followups(query: str, condition_title: Optional[str] = None) -> List[str]:
-    """Dynamically generate 4 natural follow-up questions tailored to whatever condition was discussed."""
+    """Dynamically generate 4 natural follow-up questions tailored to whatever topic or condition was discussed."""
     topic = condition_title or extract_condition_topic(query)
     lower = query.lower()
 
-    if any(k in lower for k in ["knee", "joint", "back", "shoulder", "ankle", "sprain", "strain", "muscle", "neck"]):
+    # 1. Academic / Viva / Exam / Presentation
+    if any(k in lower for k in ["viva", "vivas", "exam", "exams", "interview", "presentation", "defense", "syllabus", "study"]):
         return [
-            f"How long should I follow the R.I.C.E. protocol for {topic}?",
-            f"What gentle rehabilitation exercises help strengthen the surrounding muscles?",
-            f"When should I use cold ice packs versus warm compresses for this discomfort?",
-            f"What specific red-flag symptoms indicate I need an orthopedic evaluation?"
-        ]
-    elif any(k in lower for k in ["throat", "cough", "cold", "flu", "fever", "respiratory", "sinus", "asthma", "bronchitis"]):
-        return [
-            f"What home hydration and soothing remedies provide the fastest comfort for {topic}?",
-            f"How long are viral respiratory symptoms typically expected to last?",
-            f"What specific temperatures or breathing signs require urgent clinical care?",
-            f"When is it necessary to see a physician for diagnostic throat or viral swabs?"
-        ]
-    elif any(k in lower for k in ["stomach", "abdomen", "acid", "reflux", "digestion", "nausea", "gerd", "ulcer", "ibs"]):
-        return [
-            f"What bland foods are safest to eat during this digestive discomfort?",
-            f"How does psychological stress trigger stomach discomfort via the brain-gut axis?",
-            f"What sleeping posture prevents nighttime acid regurgitation?",
-            f"When does persistent abdominal discomfort require clinical gastroenterology workup?"
+            "How can I handle tricky questions if I freeze during the viva?",
+            "Guide me through a 2-minute box breathing cycle before entering.",
+            "What is a structured 10-minute micro-revision technique?",
+            "How can I keep my voice calm and steady while speaking to examiners?"
         ]
 
+    # 2. Grounding / Breathing / Somatic Reset
+    if any(k in lower for k in ["box breathing", "4-4-4-4", "grounding", "breathe", "breathing", "5-4-3-2-1", "senses", "calm down"]):
+        return [
+            "Can you guide me through a 5-4-3-2-1 sensory grounding exercise?",
+            "How often should I practice box breathing during high-stress days?",
+            "What should I do if racing thoughts distract me while breathing?",
+            "Can you suggest a quick progressive muscle relaxation exercise?"
+        ]
+
+    # 3. Headaches / Migraine / Neurological
+    if any(k in lower for k in ["headache", "migraine", "headaches", "temple", "migraines"]):
+        return [
+            "What are common environmental and dietary triggers for migraines?",
+            "How can I differentiate tension headaches from migraines?",
+            "What immediate home comfort measures help reduce acute headache pressure?",
+            "What specific warning signs indicate a headache needs urgent clinical evaluation?"
+        ]
+
+    # 4. Musculoskeletal / Joint / Back / Neck / Orthopedic
+    if any(k in lower for k in ["knee", "joint", "back", "shoulder", "ankle", "sprain", "strain", "muscle", "neck", "arthritis"]):
+        return [
+            f"How long should I follow the R.I.C.E. protocol for {topic}?",
+            "What gentle rehabilitation exercises help strengthen the surrounding muscles?",
+            "When should I use cold ice packs versus warm compresses for this discomfort?",
+            "What specific red-flag symptoms indicate I need an orthopedic evaluation?"
+        ]
+
+    # 5. Respiratory / Throat / Cold / Flu
+    if any(k in lower for k in ["throat", "cough", "cold", "flu", "fever", "respiratory", "sinus", "asthma", "bronchitis"]):
+        return [
+            f"What home hydration and soothing remedies provide the fastest comfort for {topic}?",
+            "How long are viral respiratory symptoms typically expected to last?",
+            "What specific temperatures or breathing signs require urgent clinical care?",
+            "When is it necessary to see a physician for diagnostic throat or viral swabs?"
+        ]
+
+    # 6. Gastrointestinal / Stomach / Acid / Digestion
+    if any(k in lower for k in ["stomach", "abdomen", "acid", "reflux", "digestion", "nausea", "gerd", "ulcer", "ibs", "gut"]):
+        return [
+            "What bland foods are safest to eat during this digestive discomfort?",
+            "How does psychological stress trigger stomach discomfort via the brain-gut axis?",
+            "What sleeping posture prevents nighttime acid regurgitation?",
+            "When does persistent abdominal discomfort require clinical gastroenterology workup?"
+        ]
+
+    # 7. Cardiovascular / Hypertension
+    if any(k in lower for k in ["hypertension", "blood pressure", "bp", "cardiovascular"]):
+        return [
+            "What dietary changes (such as the DASH diet) help regulate blood pressure?",
+            "How does daily psychological stress affect arterial blood pressure?",
+            "What daily physical activities safely support cardiovascular health?",
+            "What specific blood pressure readings require urgent emergency care?"
+        ]
+
+    # 8. Conversational / General Welcome / Wellness
     return [
-        f"What dietary and daily habit adjustments help manage {topic}?",
-        f"What are the primary warning signs to monitor for {topic}?",
-        f"What immediate home comfort steps provide the quickest relief for {topic}?",
-        f"What questions should I ask my healthcare provider during an evaluation?"
+        "What clinical health and wellness topics can I explore with you?",
+        "Can you explain the brain-gut connection between stress and physical symptoms?",
+        "How can I deal with college workload burnout effectively?",
+        "Can you help me find a licensed therapist or mental health clinic near me?"
     ]
 
 

@@ -240,6 +240,16 @@ def plan_action(
         }
 
     # --------------------------------------------------------------------------
+    # NEGATIVE CONSTRAINT: USER DOES NOT WANT AN EXERCISE / JUST LISTEN
+    # --------------------------------------------------------------------------
+    if bool(re.search(r"\b(?:don't|dont|do\s+not|no)\s+(?:want|need|give\s+me)\s+(?:an?\s+)?(?:exercise|grounding|breathing)\b", lower)) or "just listen" in lower:
+        return {
+            "selected_action": "DIRECT_RESPONSE",
+            "tool_name": "direct_conversation",
+            "reasoning_summary": "User explicitly requested listening without active somatic exercises; selected open empathetic listening.",
+        }
+
+    # --------------------------------------------------------------------------
     # PRIORITY 7: EXPLICIT GROUNDING REQUEST
     # --------------------------------------------------------------------------
     if detected_intent == "GROUNDING_REQUEST" or any(k in lower for k in [

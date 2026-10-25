@@ -471,6 +471,11 @@ def classify_intent(user_text: str, llm=None) -> str:
     ]:
         return heuristic_intent
 
+    # If heuristic detected a clear conversational greeting or identity query, return immediately
+    lower_clean = clean.lower()
+    if bool(re.search(r"\b(?:hello|hi|hey|good\s+morning|good\s+evening|good\s+afternoon|how\s+are\s+you|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+(?:do|help)|who\s+made\s+you|hi\s+again|thank\s+you|thanks)\b", lower_clean)):
+        return "GENERAL_CONVERSATION"
+
     # Stage 2: LLM Classifier for Nuanced / Ambiguous Messages
     if llm is not None:
         try:

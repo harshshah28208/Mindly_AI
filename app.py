@@ -481,6 +481,7 @@ with tab_chat:
                     "audio_path": audio_file_path,
                     "followups": fups,
                 })
+                st.rerun()
 
 
 # ==============================================================================

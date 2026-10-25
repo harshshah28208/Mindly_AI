@@ -113,19 +113,61 @@ class DynamicLocalResponseEngine:
                 "and a safe space to untangle your thoughts and physical symptoms."
             )
 
-        # Greetings
-        if any(k in lower for k in ["hello", "hi", "hey", "good morning", "good evening", "good afternoon"]):
+        # Check if invocation requests a coping strategy (prioritized before conversational greetings)
+        is_coping = any("coping" in str(m.content).lower() for m in messages if isinstance(m, SystemMessage))
+        if is_coping or any(k in lower for k in ["what can i do", "what should i do", "how to cope", "coping strategies", "anxious about vivas", "anxious about viva", "exam stress", "study stress"]):
+            from tools.coping import generate_heuristic_coping
+            return generate_heuristic_coping(user_text=last_human_msg, emotion="overwhelmed" if "anxious" in lower else "stressed")
+
+        # Check if invocation requests clinical RAG (prioritized before conversational greetings)
+        is_rag = any("gale encyclopedia" in str(m.content).lower() or "clinical health educator" in str(m.content).lower() for m in messages if isinstance(m, SystemMessage))
+        if is_rag:
+            from tools.rag import synthesize_from_chunks_dynamically
+            from rag.retriever import retrieve_relevant_chunks
+            chunks = retrieve_relevant_chunks(last_human_msg, top_k=3)
+            return synthesize_from_chunks_dynamically(last_human_msg, chunks)
+
+        # Greetings (strict whole-word matching to prevent substring collisions like 'highly')
+        if bool(re.search(r"\b(?:hello|hi|hey|good\s+morning|good\s+evening|good\s+afternoon)\b", lower)):
             return (
                 f"Hello{name_suffix}! I am Mindly, here with you. "
                 "Whatever is on your heart or mind today, this is your safe space. How are you feeling right now?"
             )
 
-        # Affirmative continuations ("yes", "sure", "please", "yeah", "ok")
-        if re.search(r"^(?:yes|yeah|yep|sure|please|ok|okay|yes please|do that|go ahead|tell me|help me)\b", lower):
-            return (
-                f"I am right here with you{name_suffix}. Let's take this one step at a time.\n\n"
-                "Would you like to focus on steadying physical tension with a guided breathing rhythm, or explore practical action steps together?"
-            )
+        # Affirmative continuations ("yes", "sure", "please", "yeah", "ok", "yes sure")
+        if re.search(r"\b(?:yes|yeah|yep|sure|please|ok|okay|do that|go ahead)\b", lower):
+            prior_texts = [str(m.content).lower() for m in messages[:-1] if isinstance(m, (HumanMessage, AIMessage))]
+            prior_history_text = " ".join(prior_texts)
+            is_academic = any(w in prior_history_text or w in lower for w in ["viva", "vivas", "exam", "exams", "interview", "presentation", "study"])
+
+            if is_academic:
+                return (
+                    f"Let's walk through your viva composure steps right now{name_suffix}:\n\n"
+                    "### 🌬️ Step 1: Immediate Somatic Reset (Box Breathing)\n"
+                    "Let's steady your heart rate and nervous system right now:\n"
+                    "1. **Inhale slowly through your nose** for **4 seconds** *(feel your belly expand)*\n"
+                    "2. **Hold your breath gently** for **4 seconds** *(stay relaxed, release jaw tension)*\n"
+                    "3. **Exhale smoothly through your mouth** for **4 seconds** *(let the nervous flutter release)*\n"
+                    "4. **Rest empty** for **4 seconds** *(feel the calm, grounded space)*\n\n"
+                    "### 🎯 Step 2: The Golden Rule for the Viva Room\n"
+                    "• **If you know the answer**: Pause for 2 seconds, state the core definition in one sentence, then give a concrete example.\n"
+                    "• **If you get stuck on a question**: Don't panic or freeze. Say with composure: *\"I'd like to reason through this from the fundamentals...\"* Examiners respect students who think analytically under pressure.\n\n"
+                    "### 📝 Step 3: Your 10-Minute Micro-Action\n"
+                    "Open your notes to just ONE key question or diagram. Read it once, close the notes, and explain it out loud in 2 minutes.\n\n"
+                    "Take a deep breath. How are your shoulders and breathing feeling right now?"
+                )
+            else:
+                return (
+                    f"Let's do that right now together{name_suffix}. Here are two immediate, grounding steps:\n\n"
+                    "### 🌬️ Quick 4-4-4-4 Somatic Reset\n"
+                    "1. **Inhale slowly through your nose** for **4 seconds** *(feel your belly expand)*\n"
+                    "2. **Hold your breath gently** for **4 seconds** *(stay relaxed, no tension)*\n"
+                    "3. **Exhale smoothly through your mouth** for **4 seconds** *(release the pressure)*\n"
+                    "4. **Rest and pause** for **4 seconds** *(stay in the calm space)*\n\n"
+                    "### 🎯 The Next Immediate Action Step\n"
+                    "Now set a timer for just **10 minutes**, set aside all other concerns, and focus on only ONE single micro-task. Once 10 minutes pass, give yourself a break.\n\n"
+                    "Take a slow breath. How does your chest and breathing feel right now?"
+                )
 
         # Gratitude
         if any(k in lower for k in ["thank you", "thanks", "appreciate it", "helpful"]):
@@ -160,9 +202,9 @@ class DynamicLocalResponseEngine:
             )
         else:
             return (
-                f"Thank you for sharing that with me{name_suffix}. I am listening attentively to your thoughts about {topic_preview}.\n\n"
-                "Every step toward putting your experience into words helps bring clarity. "
-                "How has this been affecting your day, and what kind of support would feel most helpful right now?"
+                f"I am listening attentively to what you're sharing{name_suffix}. Putting experiences around {topic_preview} "
+                "into words is an important step toward untangling them.\n\n"
+                "How has this been impacting your energy or peace of mind today, and what would feel most supportive right now?"
             )
 
 

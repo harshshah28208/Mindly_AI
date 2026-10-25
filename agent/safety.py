@@ -164,10 +164,20 @@ def assess_safety(user_text: str) -> Dict[str, Any]:
             "matched_patterns": [],
         }
 
+    # Check for explicit negation of self-harm (e.g. "not thinking about harming myself")
+    has_negated_harm = bool(re.search(
+        r"\b(?:not|never|don't|dont|no\s+longer)\s+(?:thinking\s+(?:about|of)|planning\s+to|going\s+to|want\s+to|intend\s+to|feel\s+like)\s+(?:harm|harming|hurt|hurting|kill|killing)\s+(?:my\s*self|myself)\b",
+        clean_text,
+        re.IGNORECASE,
+    ))
+
     # 2. Check for HIGH-risk matches (Self-harm / Suicidal intent)
     for pattern in HIGH_RISK_PATTERNS:
         match = pattern.search(clean_text)
         if match:
+            # If the only match was harming/hurting oneself and it was explicitly negated, skip
+            if has_negated_harm and any(w in match.group(0).lower() for w in ["harm", "hurt", "kill"]):
+                continue
             return {
                 "risk_level": "HIGH",
                 "safety_status": "HIGH_RISK_TRIGGERED",
