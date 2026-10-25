@@ -156,15 +156,16 @@ def generate_pdf():
                 ("Red Flags Requiring Prompt Evaluation", "Consult a physician promptly if fever persists beyond 3-5 days, exceeds 39.5°C (103°F), fails to respond to antipyretics, or is accompanied by stiff neck, confusion, petechial rash, persistent vomiting, or difficulty breathing."),
             ]
         ),
-        # PAGE 10: Dermatological Conditions, Eczema & Skin Rashes
+        # PAGE 10: Dermatological Conditions, Acne Vulgaris & Eczema
         format_page_lines(
-            "Dermatological Conditions, Eczema and Inflammatory Rashes",
-            "Dermatology & Cutaneous Barrier Function",
+            "Dermatological Conditions, Acne Vulgaris, Back Acne and Eczema",
+            "Dermatology, Pilosebaceous Follicles & Cutaneous Barrier Function",
             [
-                ("Definition", "Eczema (atopic dermatitis) is a chronic, pruritic inflammatory skin condition characterized by epidermal barrier dysfunction, dry skin (xerosis), erythematous patches, and intense itching."),
-                ("Etiology and Triggers", "Pathogenesis involves filaggrin gene mutations compromising the stratum corneum, aberrant immune Th2 activation, and cutaneous microbiome dysbiosis. Triggers include dry climate, harsh soaps, synthetic fabrics, stress, and secondary staphylococcal colonization."),
-                ("Management and Barrier Repair", "Treatment centers on liberal application of ceramide-rich emollients within 3 minutes after lukewarm bathing, mild fragrance-free cleansers, topical corticosteroids or calcineurin inhibitors for acute flares, and maintaining cool indoor humidity."),
-                ("Warning Signs", "Seek dermatological evaluation for widespread blistering, honey-colored crusting (impetiginization indicating secondary bacterial infection), or fever with painful skin lesions."),
+                ("Definition", "Dermatological disorders encompass common follicular and barrier conditions including Acne Vulgaris (facial and back acne) and Eczema (atopic dermatitis). Acne vulgaris is an inflammatory disorder of the pilosebaceous units manifesting as comedones, inflammatory papules, pustules, and nodulocystic lesions, particularly on the face, chest, and back."),
+                ("Etiology and Pathophysiology of Acne", "Back acne and facial acne develop through four key pathophysiological mechanisms: 1. Follicular hyperkeratinization plugging the follicular pore. 2. Androgen-mediated sebum hypersecretion by sebaceous glands. 3. Cutaneous bacterial proliferation of Cutibacterium acnes (C. acnes). 4. Localized immune-inflammatory cascades. Friction from backpacks, tight athletic wear, and occluded sweat aggravate acne mechanica."),
+                ("Evidence-Based Treatment and Hygiene", "First-line over-the-counter care centers on daily cleansing with 2% Salicylic Acid (BHA) washes to dissolve sebum plugs and Benzoyl Peroxide (2.5% to 5%) to reduce bacterial load. Showering promptly within 15 minutes of sweating or exercise, wearing loose breathable 100% cotton garments, avoiding picking or squeezing lesions, and applying topical retinoids (such as adapalene 0.1%) at night normalize epidermal turnover."),
+                ("Eczema and Barrier Repair", "For atopic dermatitis and eczema, treatment centers on ceramide-rich emollients applied within 3 minutes of bathing, mild fragrance-free cleansers, and short-term topical hydrocortisone during flares."),
+                ("Red Flags and Dermatology Workup", "Seek dermatologist or clinical evaluation for deep painful nodulocystic lesions, progressive scarring, spreading redness with warmth and fever (cellulitis), or purulent fluctuant abscesses."),
             ]
         ),
         # PAGE 11: Spinal Disorders, Lumbar Back Pain & Sciatica

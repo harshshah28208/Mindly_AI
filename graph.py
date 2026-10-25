@@ -82,11 +82,7 @@ def create_safety_guard_node():
         safety_eval = assess_safety(normalized)
         urgent_med = screen_urgent_medical(normalized)
 
-        health_prio = "NONE"
-        if urgent_med["is_urgent"]:
-            health_prio = "URGENT"
-        elif is_physical_health_query(normalized):
-            health_prio = "ROUTINE"
+        health_prio = "URGENT" if urgent_med["is_urgent"] else "NONE"
 
         return {
             "user_input": user_input,
@@ -188,13 +184,16 @@ def create_planner_node():
     return planner_node
 
 
-def create_grounding_node():
+def create_grounding_node(llm=None, use_simulation: bool = False):
     """Create grounding tool execution node."""
+    _llm = None if use_simulation else (llm or get_llm())
     def grounding_node(state: AgentState) -> Dict[str, Any]:
         try:
             output = interactive_grounding_tool(
                 activity_type=state.get("tool_name"),
                 emotion=state.get("detected_emotion", "stressed"),
+                user_text=state.get("user_input", ""),
+                llm=_llm,
             )
         except Exception as exc:
             output = f"Error: tool failed - {str(exc)}"
@@ -465,7 +464,7 @@ def build_mindly_graph(
     builder.add_node("intent_node", create_intent_node(llm=llm, use_simulation=use_simulation))
     builder.add_node("emotion_node", create_emotion_node(llm=llm, use_simulation=use_simulation))
     builder.add_node("planner_node", create_planner_node())
-    builder.add_node("grounding_node", create_grounding_node())
+    builder.add_node("grounding_node", create_grounding_node(llm=llm, use_simulation=use_simulation))
     builder.add_node("coping_node", create_coping_node(coping_llm=coping_llm, use_simulation=use_simulation))
     builder.add_node("rag_node", create_rag_node(llm=llm, use_simulation=use_simulation))
     builder.add_node("vision_node", create_vision_node())

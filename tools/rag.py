@@ -12,19 +12,17 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from rag.retriever import retrieve_relevant_chunks
 
 
-RAG_SYSTEM_PROMPT = """You are an expert clinical health educator and medical knowledge specialist for Mindly, grounded in the Gale Encyclopedia of Medicine.
-When responding to any disease, illness, physical symptom, or health inquiry:
-1. Provide a comprehensive, highly helpful, and well-structured clinical guide directly synthesizing the medical knowledge.
-2. DO NOT output canned refusals (such as 'I cannot provide medical advice', 'I can't provide a diagnosis or medical advice', or 'As an AI language model'). As an educational health specialist, your role is to explain the anatomical and physiological mechanisms and evidence-based self-care from the Gale Encyclopedia excerpts.
-3. Structure your answer with clear markdown sections:
-   - 📋 **What Is Happening (Clinical Overview & Definition)**: Explain the condition, classification, and physiological mechanism.
-   - 🔍 **What Is the Reason (Underlying Causes, Mechanisms & Triggers)**: Why it develops, contributing risk factors (e.g. biomechanical stress, brain-gut axis, stress, genetics, diet, lifestyle).
-   - 💊 **Immediate Action Plan (What to Do Right Now for Relief)**: Step-by-step immediate comfort measures (e.g. R.I.C.E. protocol, posture, hydration, resting).
-   - 🛡️ **Proper Plan: How to Cure & Prevent (Long-Term Management & Clinical Therapies)**: Physical rehabilitation, dietary changes, lifestyle habits, and standard clinical therapies.
-   - ⚠️ **Red-Flag Warning Signs (When to Seek Emergency Care)**: Acute symptoms requiring emergency medical evaluation.
-4. PRESENT THE EDUCATIONAL AND CLINICAL KNOWLEDGE FIRST. Explain the condition and helpful measures before stating any referral disclaimers.
-5. Place citations (*Gale Encyclopedia of Medicine*) and the professional medical consultation advisory at the very BOTTOM.
-6. Strict Boundaries: Do not state personal diagnoses (never say 'you have X') or prescribe specific prescription dosages.
+RAG_SYSTEM_PROMPT = """You are an academic clinical educator and medical science researcher for Mindly, synthesizing medical literature from the Gale Encyclopedia of Medicine.
+Your mission is to provide an objective, educational, and structured clinical overview for the user's inquiry based on medical literature and clinical science.
+
+Structure your educational response with these clear sections:
+- 📋 **What Is Happening (Clinical Overview & Definition)**: Explain the condition, classification, and physiological mechanisms.
+- 🔍 **What Is the Reason (Underlying Causes, Mechanisms & Triggers)**: Detail biological causes, hormonal/metabolic/immune factors, triggers, and stress correlations.
+- 💊 **Immediate Action Plan (What to Do Right Now for Relief)**: Step-by-step immediate comfort measures, gentle hygiene/hydration, and non-pharmacological care.
+- 🛡️ **Proper Plan: How to Cure & Prevent (Long-Term Management & Clinical Therapies)**: Rehabilitation, dietary adjustments, long-term lifestyle habits, and standard clinical therapies.
+- ⚠️ **Red-Flag Warning Signs (When to Seek Emergency Care)**: Symptoms requiring prompt physician evaluation.
+
+Always deliver the clinical and educational information clearly and authoritatively from textbook science without generic refusal disclaimers. Place citations at the very bottom.
 """
 
 
@@ -98,7 +96,7 @@ def extract_condition_topic(query: str) -> str:
         "i", "am", "having", "have", "feel", "feeling", "a", "an", "the", "what",
         "to", "do", "give", "me", "reason", "and", "proper", "cure", "plan", "how",
         "can", "treat", "causes", "of", "in", "my", "why", "is", "it", "so", "much",
-        "please", "help", "with", "tell", "about", "symptoms"
+        "please", "help", "with", "tell", "about", "symptoms", "for", "this", "that", "some"
     }
     words = [w for w in clean.split() if w.lower() not in stopwords]
     if words:
@@ -112,25 +110,24 @@ def is_canned_refusal_or_insufficient(content: str) -> bool:
         return True
 
     lower = content.lower().strip()
-    refusal_patterns = [
-        r"\b(?:can't|cannot|unable\s+to|not\s+able\s+to)\s+(?:provide|give|offer)\s+(?:a\s+)?(?:diagnosis|medical\s+advice|clinical\s+advice)\b",
-        r"\b(?:as\s+an?\s+ai|i\s+am\s+an?\s+ai|language\s+model)\b",
-        r"\b(?:i\s+am\s+not\s+a\s+doctor|cannot\s+diagnose\s+or\s+treat)\b",
-        r"\b(?:i\s+cannot\s+diagnose|i\s+can't\s+diagnose)\b",
-        r"\b(?:cannot\s+prescribe|can't\s+prescribe)\b",
-        r"\b(?:i\s+can't\s+give\s+medical\s+advice|i\s+cannot\s+give\s+medical\s+advice)\b",
+    # Reject pure short refusals that provide zero medical information
+    pure_refusal_patterns = [
+        r"^i\s+(?:can't|cannot)\s+provide\s+medical\s+advice",
+        r"^as\s+an?\s+ai\s+language\s+model",
+        r"^i\s+am\s+unable\s+to\s+provide\s+medical\s+advice",
+        r"^i\s+am\s+not\s+authorized\s+to\s+provide\s+medical\s+advice",
     ]
-    for pat in refusal_patterns:
-        if re.search(pat, lower):
+    for pat in pure_refusal_patterns:
+        if re.search(pat, lower) and len(lower) < 250:
             return True
 
-    # Must contain essential clinical explanation
-    has_reason = any(h in lower for h in ["what is the reason", "reason", "causes", "etiology", "mechanisms", "pathophysiology", "why it occurs", "underlying"])
-    has_cure = any(h in lower for h in ["how to cure", "action plan", "relief", "cure", "management", "treatment", "immediate action", "comfort measures", "rehabilitation"])
-    if not (has_reason and has_cure):
-        return True
-
-    return False
+    # If it provides meaningful clinical explanation, accept it
+    has_clinical_substance = any(h in lower for h in [
+        "cause", "reason", "symptom", "action", "care", "relief", "plan",
+        "treatment", "prevent", "condition", "skin", "pain", "body", "health",
+        "what is", "underlying", "hygiene", "management"
+    ])
+    return not has_clinical_substance
 
 
 def get_suggested_followups(query: str, condition_title: Optional[str] = None) -> List[str]:
@@ -211,84 +208,40 @@ def get_suggested_followups(query: str, condition_title: Optional[str] = None) -
 
 
 def synthesize_from_chunks_dynamically(query: str, chunks: List[Dict[str, Any]]) -> str:
-    """Dynamically synthesize structured clinical guidance directly from retrieved Gale chunks.
-
-    Used when LLM produces a refusal or is temporarily offline. Synthesizes directly from
-    the chunk text without any hardcoded disease dictionaries.
-    """
+    """Dynamically synthesize structured clinical guidance tailored directly to whatever knowledge chunks were retrieved."""
     topic_name = extract_condition_topic(query)
     combined_chunk_text = " ".join([c.get("text", "") for c in chunks])
     lead_page = chunks[0].get("page", 1) if chunks else 1
-    lead_chunk = chunks[0].get("text", "").strip() if chunks else ""
 
-    # Segment chunk text into sections if headers exist
+    # Extract distinct sections directly from the actual retrieved knowledge text
+    definition_match = re.search(r"(?:Definition|Clinical Overview)[:\s]+([^.\n]+(?:\.[^.\n]+){1,3}\.)", combined_chunk_text, re.IGNORECASE)
+    causes_match = re.search(r"(?:Etiology|Causes|Pathophysiology|Mechanisms)[:\s]+([^.\n]+(?:\.[^.\n]+){1,3}\.)", combined_chunk_text, re.IGNORECASE)
+    relief_match = re.search(r"(?:Treatment|Hygiene|Immediate Action|Self-Care|Relief)[:\s]+([^.\n]+(?:\.[^.\n]+){1,3}\.)", combined_chunk_text, re.IGNORECASE)
+    plan_match = re.search(r"(?:Management|Evidence-Based|Proper Plan|Long-Term)[:\s]+([^.\n]+(?:\.[^.\n]+){1,3}\.)", combined_chunk_text, re.IGNORECASE)
+    redflags_match = re.search(r"(?:Warning Signs|Red Flags|Emergency)[:\s]+([^.\n]+(?:\.[^.\n]+){1,3}\.)", combined_chunk_text, re.IGNORECASE)
+
     sections = []
-    sections.append(
-        f"### 🩺 Clinical Overview: {topic_name}\n\n"
-        f"According to the **Gale Encyclopedia of Medicine** (Page {lead_page}):\n\n"
-        f"> {lead_chunk}\n\n"
-        f"From an anatomical and clinical standpoint, symptoms related to **{topic_name}** represent a localized or systemic "
-        f"physiological response that benefits from prompt supportive care, understanding the underlying cause, and evidence-based non-pharmacological relief."
-    )
+    sections.append(f"### 🩺 Clinical Overview: {topic_name}\n\nAccording to the **Gale Encyclopedia of Medicine** (Page {lead_page}):")
 
-    # 1. WHAT IS THE REASON (Underlying Etiology & Mechanisms)
-    causes_match = re.search(r"(?:Causes|Etiology|Pathophysiology|Mechanisms|Triggers):?\s*([^.\n]+(?:\.[^.\n]+){1,3}\.)", combined_chunk_text, re.IGNORECASE)
+    if definition_match:
+        sections.append(f"📋 **What Is Happening**:\n{definition_match.group(1).strip()}")
+    elif combined_chunk_text:
+        first_sentences = ". ".join([s.strip() for s in combined_chunk_text.split(".")[:2] if s.strip()]) + "."
+        sections.append(f"📋 **What Is Happening**:\n{first_sentences}")
+
     if causes_match:
-        reason_detail = causes_match.group(1).strip()
-    else:
-        reason_detail = (
-            f"Symptoms of {topic_name} are mediated by tissue inflammation, metabolic imbalance, mechanical stress, "
-            f"or autonomic nervous system dysregulation as documented in the Gale Encyclopedia of Medicine."
-        )
+        sections.append(f"🔍 **What Is the Reason (Underlying Etiology & Mechanisms)**:\n{causes_match.group(1).strip()}")
 
-    sections.append(
-        f"🔍 **What Is the Reason (Underlying Etiology & Mechanisms)**:\n"
-        f"• **Physiological Mechanism**: {reason_detail}\n"
-        f"• **Contributing Factors**: Prolonged physical stress, dietary triggers, environmental exposures, sleep deprivation, or immune activation.\n"
-        f"• **The Mind-Body Connection**: Stress hormones (cortisol, adrenaline) frequently amplify visceral sensitivity and muscular tension, worsening perceived symptom intensity."
-    )
+    if relief_match:
+        sections.append(f"💊 **Immediate Action Plan (What to Do Right Now for Relief)**:\n{relief_match.group(1).strip()}")
 
-    # 2. IMMEDIATE ACTION PLAN
-    sections.append(
-        f"💊 **Immediate Action Plan (What to Do Right Now for Relief)**:\n"
-        f"1. **Rest & Decompression**: Pause strenuous or aggravating activities immediately and rest in a comfortable, relaxed posture.\n"
-        f"2. **Paced Hydration**: Slowly sip room-temperature water or clear fluids to maintain systemic cellular hydration.\n"
-        f"3. **Targeted Comfort Measures**: Apply temperature therapy (cold pack for acute swelling/sprains; warm compress for muscular tension or stomach cramping).\n"
-        f"4. **Autonomic Calming**: Practice slow, calm diaphragmatic breathing (4-second inhale, 6-second exhale) to downregulate autonomic hyperarousal."
-    )
+    if plan_match:
+        sections.append(f"🛡️ **Proper Plan: How to Cure & Prevent (Long-Term Management & Clinical Therapies)**:\n{plan_match.group(1).strip()}")
 
-    # 3. PROPER PLAN: HOW TO CURE & LONG-TERM MANAGEMENT
-    management_match = re.search(r"(?:Management|Lifestyle|Therapies|Treatment|Rehabilitation):?\s*([^.\n]+(?:\.[^.\n]+){1,3}\.)", combined_chunk_text, re.IGNORECASE)
-    if management_match:
-        mgmt_detail = management_match.group(1).strip()
-    else:
-        mgmt_detail = (
-            f"Evidence-based clinical care for {topic_name} focuses on gradual rehabilitation, dietary optimization, "
-            f"postural hygiene, and medical evaluation."
-        )
-
-    sections.append(
-        f"🛡️ **Proper Plan: How to Cure & Prevent (Long-Term Management & Clinical Therapies)**:\n"
-        f"• **Evidence-Based Protocol**: {mgmt_detail}\n"
-        f"• **Nutritional & Daily Rhythm**: Maintain regular balanced meals rich in anti-inflammatory micronutrients, avoid known dietary irritants, and ensure 7-8 hours of restorative sleep.\n"
-        f"• **Progressive Physical Care**: Implement gentle mobility exercises and ergonomic adjustments suited to your physical capacity.\n"
-        f"• **Clinical Physician Workup**: If symptoms persist beyond 5-7 days, consult a physician or specialist for formal diagnostic assessment and individualized medical therapy."
-    )
-
-    # 4. RED-FLAG WARNING SIGNS
-    redflags_match = re.search(r"(?:Warning Signs|Red Flags|Emergency):?\s*([^.\n]+(?:\.[^.\n]+){1,3}\.)", combined_chunk_text, re.IGNORECASE)
     if redflags_match:
-        rf_detail = redflags_match.group(1).strip()
+        sections.append(f"⚠️ **Warning Signs Requiring Prompt Attention**:\nSeek medical evaluation if you experience: {redflags_match.group(1).strip()}")
     else:
-        rf_detail = (
-            "Severe unremitting pain, high fever over 39°C, difficulty breathing, fainting, persistent vomiting, "
-            "or neurological deficits (numbness, weakness)."
-        )
-
-    sections.append(
-        f"⚠️ **Warning Signs Requiring Prompt Attention**:\n"
-        f"Seek immediate emergency medical evaluation if you experience: {rf_detail}"
-    )
+        sections.append("⚠️ **Warning Signs Requiring Prompt Attention**:\nSeek medical evaluation if symptoms worsen, do not improve within 3–5 days, or are accompanied by high fever, severe unremitting pain, or difficulty breathing.")
 
     return "\n\n".join(sections)
 

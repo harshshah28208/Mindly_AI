@@ -83,12 +83,6 @@ def generate_direct_response(
             if query_cat in cat or cat in query_cat:
                 return f"Your favorite {query_cat} is **{val}**! You shared that with me earlier in our reflection."
 
-    if "what is your name" in lower or "who are you" in lower:
-        return (
-            "I am **Mindly**, your empathetic mental-wellness support companion. "
-            "I'm here to provide a quiet, safe, and confidential space for you to reflect, "
-            "untangle your thoughts, or simply be heard without judgment."
-        )
 
     # If LLM is available, invoke it with the empathetic Mindly system prompt
     if llm is None:
@@ -112,6 +106,8 @@ def generate_direct_response(
             if content and len(content) > 10:
                 if bool(re.search(r"^\s*(?:hello|hi|hey|greetings)\b", user_text.lower())) and "mindly" not in content.lower():
                     content = f"Hello! I am Mindly, your mental-wellness companion. {content}"
+                if bool(re.search(r"what is your name|who are you", user_text.lower())) and "mindly" not in content.lower():
+                    content = f"I am Mindly, your mental-wellness companion. {content}"
                 return content
         except Exception:
             pass

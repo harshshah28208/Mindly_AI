@@ -122,28 +122,75 @@ class DynamicLocalResponseEngine:
             )
 
         # Affirmative continuations ("yes", "sure", "please", "yeah", "ok", "yes sure")
-        if re.search(r"^(?:yes|yeah|yep|sure|please|ok|okay|yes\s+sure|go\s+ahead)[\s.?!]*$", lower):
-            return (
-                f"I'm right here with you{name_suffix}. Take a calm breath. "
-                "What would feel most helpful for us to focus on next?"
-            )
+        if re.search(r"^(?:yes|yeah|yep|sure|please|ok|okay|yes\s+sure|go\s+ahead|tell\s+me\s+more|how|what\s+can\s+i\s+do)[\s.?!]*$", lower):
+            # Check previous conversation context to see what they are responding to
+            prev_ai_text = ""
+            prev_human_topics = []
+            for m in reversed(messages[:-1]):
+                if isinstance(m, AIMessage) and not prev_ai_text:
+                    prev_ai_text = str(m.content).lower()
+                elif isinstance(m, HumanMessage):
+                    h_words = [w for w in re.findall(r"\b[a-zA-Z]{4,}\b", str(m.content).lower()) if w not in {"what", "this", "that", "with", "have", "from", "they", "will", "would", "about", "there", "their", "could", "should", "your", "mindly", "feel", "feeling"}]
+                    if h_words:
+                        prev_human_topics.extend(h_words[:2])
+
+            context_topic = prev_human_topics[0] if prev_human_topics else "this"
+
+            if any(k in prev_ai_text for k in ["breathe", "breathing", "grounding", "4-4-4-4", "somatic"]):
+                return (
+                    f"Let's do this grounding pause together right now{name_suffix}.\n\n"
+                    "1. Close your eyes gently and drop your shoulders away from your ears.\n"
+                    "2. Inhale slowly through your nose for **4 seconds**.\n"
+                    "3. Hold that calm space for **4 seconds**.\n"
+                    "4. Exhale softly through your mouth for **4 seconds**.\n\n"
+                    "Notice that quiet release. How does your body feel after that breath?"
+                )
+            elif any(k in prev_ai_text for k in ["viva", "vivas", "exam", "exams", "study", "workload", "deadline"]):
+                return (
+                    f"Let's break your preparation down so it feels manageable{name_suffix}.\n\n"
+                    "When anticipating vivas or exams, our brains inflate the entire syllabus into an emergency. "
+                    "Here is the single best step you can take right now:\n\n"
+                    "• **The 15-Minute Micro-Sprint**: Pick only ONE specific topic or slide deck. Set a 15-minute timer and read just that.\n"
+                    "• **Action dissolves anticipatory dread**: Once you begin moving your hands or reading, the physiological panic subsides.\n\n"
+                    "Which specific topic or question feels most intimidating for you to tackle first?"
+                )
+            else:
+                return (
+                    f"I'm right here with you{name_suffix}. Let's gently explore {context_topic}.\n\n"
+                    "When you sit with this feeling, what thought or worry seems to come up most frequently?"
+                )
 
         # Gratitude
         if any(k in lower for k in ["thank you", "thanks", "appreciate it", "helpful"]):
             return (
-                f"You are very welcome{name_suffix}! I am always here to support your wellness, clarity, and peace of mind. "
-                "Reach out whenever you need a grounding pause or clinical insight."
+                f"You are very welcome{name_suffix}! I am always here to support your peace of mind and clarity. "
+                "Reach out whenever you need a calm listening ear or grounding guidance."
             )
 
         # Dynamic, contextual empathetic reflection based on user's exact input
         topic_words = [w for w in re.findall(r"\b[a-zA-Z]{4,}\b", lower) if w not in {"what", "this", "that", "with", "have", "from", "they", "will", "would", "about", "there", "their", "could", "should", "your", "mindly", "feel", "feeling"}]
         topic_preview = ", ".join(topic_words[:3]) if topic_words else "what you are experiencing"
 
-        return (
-            f"I hear you{name_suffix}, and I'm listening closely to what you shared about {topic_preview}. "
-            f"Taking a moment to pause and put words to this is a meaningful step.\n\n"
-            f"What aspect of this is feeling most challenging or top of mind for you right now?"
-        )
+        # SafeSpace clinical psychologist attunement variations
+        if any(k in lower for k in ["anxious", "anxiety", "panic", "nervous", "worry", "racing"]):
+            return (
+                f"I hear how much tension is present around {topic_preview}{name_suffix}. "
+                "When anxiety spikes, your nervous system is simply trying to protect you, but it can feel overwhelming.\n\n"
+                "Remember: you do not have to solve everything in this single hour. "
+                "What is one small thing within your immediate control right now?"
+            )
+        elif any(k in lower for k in ["tired", "exhausted", "burnout", "drowning", "too much", "heavy"]):
+            return (
+                f"I hear how deeply exhausting that has been for you{name_suffix}. "
+                "Carrying this much emotional or mental weight takes a real physical toll on your body.\n\n"
+                "Give yourself full permission to pause. What would feel like the kindest, most restorative thing you can do for yourself today?"
+            )
+        else:
+            return (
+                f"I'm listening closely to what you shared about {topic_preview}{name_suffix}. "
+                "Taking time to put words to your experience is a courageous and meaningful step.\n\n"
+                "What part of this is feeling most challenging or top of mind for you right now?"
+            )
 
 
 class UniversalChatModel:

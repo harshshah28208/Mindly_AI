@@ -107,25 +107,30 @@ def is_physical_health_query(user_text: str) -> bool:
     if not lower:
         return False
 
-    # 1. Exclude idiomatic or purely psychological metaphors
-    if any(m in lower for m in [
-        "butterflies in my stomach",
-        "butterflies in the stomach",
-        "butterflies in your stomach",
-        "pains me to say",
-        "heartbroken",
-        "heart breaks",
-        "pain in the neck" if not ("my neck" in lower or "neck hurts" in lower) else "",
+    # 1. Strictly exclude emotional, psychological, and relational topics from physical health RAG
+    if any(k in lower for k in [
+        "jealous", "jealousy", "envy", "overthink", "overthinking",
+        "procrastinat", "breakup", "heartbreak", "heart broken", "friendship",
+        "relationship", "lonely", "loneliness", "feeling down", "feeling sad",
+        "cry", "crying", "guilt", "shame", "imposter", "boredom",
+        "butterflies in my stomach", "butterflies in the stomach", "pains me to say",
     ]):
         return False
 
-    # 2. Exclude somatic anxiety sensations tied specifically to exams/nervousness
+    # 2. Strictly exclude coding, technical, and math topics
+    if any(k in lower for k in [
+        "python", "script", "beautifulsoup", "code", "coding", "software",
+        "javascript", "html", "css", "database", "sql", "api", "function"
+    ]):
+        return False
+
+    # 3. Exclude somatic anxiety sensations tied specifically to exams/nervousness
     if ("feels weird" in lower or "feel weird" in lower or "weird feeling" in lower) and any(
         ctx in lower for ctx in ["exam", "test", "before exams", "anxious", "nervous"]
     ):
         return False
 
-    # 3. Check for explicit grounding requests first (user is explicitly seeking a calming exercise)
+    # 4. Check for explicit grounding requests first (user is explicitly seeking a calming exercise)
     if any(k in lower for k in [
         "want a breathing exercise", "need a breathing exercise", "give me a grounding",
         "need a 5-4-3-2-1", "box breathing", "guide me to breathe", "help me calm down",
@@ -133,76 +138,75 @@ def is_physical_health_query(user_text: str) -> bool:
     ]):
         return False
 
-    # 4. Dynamic Action / Cure / Remedy / Treatment inquiry patterns
-    if re.search(
+    # 5. Exclude generic pronoun continuations without physical symptoms
+    if re.search(r"\b(?:what\s+(?:can\s+i\s+do|to\s+do|should\s+i\s+do)\s+for\s+(?:it|this|that))\b", lower) and not any(
+        k in lower for k in ["pain", "ache", "fever", "cough", "migraine", "stomach", "headache", "throat", "injury", "sprain", "rash", "acidity", "nausea", "acne", "pimple"]
+    ):
+        return False
+
+    # 6. Specific physical conditions, diseases, dermatological, and somatic pathology (word boundaries)
+    physical_terms = [
+        r"\bacne\b", r"\bacnes\b", r"\bpimple\b", r"\bpimples\b", r"\bblackhead\b", r"\bwhitehead\b", r"\bfolliculitis\b",
+        r"\bacidity\b", r"\bacid\s+reflux\b", r"\bgerd\b", r"\bheartburn\b", r"\bindigestion\b", r"\bgastritis\b", r"\bdyspepsia\b",
+        r"\bhypertension\b", r"\bhigh\s+blood\s+pressure\b", r"\blow\s+blood\s+pressure\b", r"\bhypotension\b",
+        r"\bmigraine\b", r"\bheadache\b", r"\bcluster\s+headache\b", r"\btension\s+headache\b",
+        r"\bdiabetes\b", r"\bdiabetic\b", r"\bblood\s+sugar\b", r"\bglucose\b", r"\binsulin\b",
+        r"\basthma\b", r"\bbronchitis\b", r"\bpneumonia\b", r"\bwheezing\b", r"\brespiratory\b", r"\blungs?\b",
+        r"\bstomach\s+pain\b", r"\babdominal\s+pain\b", r"\bpain\s+in\s+(?:my\s+)?stomach\b", r"\bstomach\s+hurts?\b",
+        r"\bstomach\s+ache\b", r"\bstomachache\b", r"\bbelly\s+ache\b", r"\btummy\s+hurt\b",
+        r"\bulcer\b", r"\bpeptic\s+ulcer\b", r"\birritable\s+bowel\b", r"\bibs\b", r"\bcolitis\b", r"\bbloating\b",
+        r"\binsomnia\b", r"\bsleep\s+disorder\b", r"\bsleep\s+apnea\b", r"\brestless\s+legs\b", r"\bcircadian\b",
+        r"\barthritis\b", r"\bosteoarthritis\b", r"\brheumatoid\b", r"\bjoint\s+pain\b", r"\bback\s+pain\b", r"\bneck\s+pain\b", r"\bgout\b",
+        r"\bfever\b", r"\bcough\b", r"\bcoughing\b", r"\bsore\s+throat\b", r"\bthroat\s+hurt\b", r"\bcold\b", r"\bflu\b", r"\binfluenza\b",
+        r"\binfection\b", r"\bviral\s+infection\b", r"\bbacterial\s+infection\b", r"\bstrep\b",
+        r"\banemia\b", r"\biron\s+deficiency\b", r"\bdehydration\b", r"\belectrolyte\b",
+        r"\bthyroid\b", r"\bhypothyroidism\b", r"\bhyperthyroidism\b", r"\bgoiter\b",
+        r"\bheart\s+disease\b", r"\bcardiac\b", r"\bchest\s+pain\b", r"\bangina\b", r"\bpalpitations?\b", r"\barrhythmia\b", r"\bcholesterol\b",
+        r"\bkidney\b", r"\bkidney\s+stones?\b", r"\buti\b", r"\burinary\s+tract\b",
+        r"\ballergy\b", r"\ballergies\b", r"\ballergic\b", r"\beczema\b", r"\bdermatitis\b", r"\bhives\b", r"\brash\b",
+        r"\bcancer\b", r"\btumor\b", r"\btumor\s+cells\b", r"\bbiopsy\b", r"\boncology\b",
+        r"\bnausea\b", r"\bnauseous\b", r"\bvomiting\b", r"\bvomit\b", r"\bdiarrhea\b", r"\bconstipation\b", r"\bvertigo\b"
+    ]
+    for pat in physical_terms:
+        if re.search(pat, lower):
+            return True
+
+    # 7. Dynamic Action / Cure / Treatment inquiry ONLY if associated with physical body or condition
+    has_cure_action = bool(re.search(
         r"\b(?:what\s+(?:to\s+do|can\s+i\s+do|should\s+i\s+(?:do|take|eat|drink))\s+for|how\s+to\s+(?:cure|treat|heal|relieve|reduce|stop|manage|handle)|how\s+can\s+i\s+(?:cure|treat|relieve|stop)|(?:cure|treatment|remedy|remedies|home\s+remedy|home\s+remedies|medicine|medication)\s+for|how\s+to\s+get\s+rid\s+of)\b",
         lower,
-    ):
+    ))
+    has_body_or_symptom = bool(re.search(
+        r"\b(?:acne|acnes|pimple|pimples|skin|face|back|spine|neck|shoulder|knee|joint|stomach|gut|belly|chest|head|throat|ear|eye|pain|ache|cough|fever|burn|rash|cramp|swelling|bleeding|nausea|reflux|gas)\b",
+        lower,
+    ))
+    if has_cure_action and has_body_or_symptom:
         return True
 
-    # 5. Dynamic Reason, Etiology, and Cause inquiry patterns
-    if re.search(
+    # 8. Dynamic Reason, Etiology, and Cause inquiry patterns associated with physical conditions
+    has_cause_inquiry = bool(re.search(
         r"\b(?:what\s+is\s+the\s+reason\s+(?:for|behind)|why\s+do\s+i\s+have|why\s+am\s+i\s+having|what\s+causes?|reasons?\s+for|causes?\s+of)\b",
         lower,
-    ):
+    ))
+    if has_cause_inquiry and has_body_or_symptom:
         return True
 
-    # 6. Dynamic Symptom & Bodily Sensation complaints ("I am having acidity", "I have gas", etc.)
+    # 9. Dynamic Symptom & Bodily Sensation complaints ("I am having acidity", "my back hurts", etc.)
     if re.search(
-        r"\b(?:having|have|got|feeling|suffering\s+from|experiencing|struggling\s+with)\s+(?:an?\s+)?(?:acute\s+|chronic\s+|mild\s+|severe\s+)?(?:acid(?:ity)?|heartburn|acid\s+reflux|gerd|gas|bloat(?:ing)?|indigestion|dyspepsia|nausea|vomit(?:ing)?|cramp(?:s|ing)?|burn(?:ing)?|pain(?:ing)?|ache|aching|fever|chills?|shivering|cough(?:ing)?|cold|congestion|sore\s+throat|diarrhea|constipation|dizz(?:y|iness)|vertigo|migraine|headache|weakness|fatigue|palpitation(?:s)?|rash(?:es)?|swelling|infection|stiffness|spasm(?:s)?|discomfort|sleeplessness|insomnia|itch(?:ing)?|shortness\s+of\s+breath)\b",
+        r"\b(?:having|have|got|suffering\s+from|experiencing)\s+(?:an?\s+)?(?:acute\s+|chronic\s+|mild\s+|severe\s+)?(?:acid(?:ity)?|heartburn|acid\s+reflux|gerd|gas|bloat(?:ing)?|indigestion|dyspepsia|nausea|vomit(?:ing)?|cramp(?:s|ing)?|burn(?:ing)?|pain(?:ing)?|ache|aching|fever|chills?|cough(?:ing)?|cold|sore\s+throat|diarrhea|constipation|dizz(?:y|iness)|vertigo|migraine|headache|palpitation(?:s)?|rash(?:es)?|swelling|acne|pimples?)\b",
         lower,
     ):
         return True
 
-    # 7. Dynamic Anatomical complaints ("my stomach is burning", "chest tightness", etc.)
+    # 10. Dynamic Anatomical complaints ("my back hurts", "burning in my chest", etc.)
     if re.search(
         r"\b(?:my\s+)?(?:stomach|abdomen|gut|belly|tummy|chest|head|throat|back|neck|shoulder|knee|joints?|eyes?|ears?|lungs?|bowels?|muscles?|skin|esophagus)\s+(?:hurts?|aches?|pains?|is\s+burning|is\s+upset|is\s+aching|is\s+cramping|is\s+swollen|is\s+stiff|is\s+paining|is\s+tight)\b",
         lower,
     ):
         return True
-    if re.search(
-        r"\b(?:burning|pain|cramp(?:s|ing)?|ache|aching|tightness|heaviness|discomfort|soreness)\s+in\s+(?:my\s+)?(?:stomach|abdomen|gut|belly|tummy|chest|head|throat|back|neck|shoulder|knee|joints?|eyes?|ears?|lungs?|bowels?|muscles?|body)\b",
-        lower,
-    ):
-        return True
 
-    # 8. Clinical disease suffixes (-itis, -algia, -emia, -pathy, -osis)
-    if re.search(r"\b\w+(?:itis|algia|emia|opathy|osis)\b", lower):
-        return True
-
-    # 9. Specific diseases, clinical conditions, disorders, and pathology
-    if any(k in lower for k in [
-        "acidity", "acid reflux", "gerd", "heartburn", "indigestion", "gastritis", "dyspepsia",
-        "hypertension", "high blood pressure", "low blood pressure", "hypotension",
-        "migraine", "headache", "cluster headache", "tension headache",
-        "diabetes", "diabetic", "blood sugar", "glucose", "insulin",
-        "asthma", "bronchitis", "pneumonia", "wheezing", "respiratory", "lung", "lungs",
-        "stomach pain", "abdominal pain", "pain in my stomach", "pain in stomach", "stomach hurts",
-        "stomach hurt", "stomach ache", "stomachache", "belly ache", "tummy hurt",
-        "ulcer", "peptic ulcer", "irritable bowel", "ibs", "colitis", "bloating",
-        "insomnia", "sleep disorder", "sleep apnea", "restless legs", "circadian",
-        "arthritis", "osteoarthritis", "rheumatoid", "joint pain", "back pain", "neck pain", "gout",
-        "fever", "cough", "coughing", "sore throat", "throat hurt", "cold", "flu", "influenza",
-        "infection", "viral infection", "bacterial infection", "strep",
-        "anemia", "iron deficiency", "dehydration", "electrolyte",
-        "thyroid", "hypothyroidism", "hyperthyroidism", "goiter",
-        "heart disease", "cardiac", "chest pain", "angina", "palpitations", "arrhythmia", "cholesterol",
-        "kidney", "kidney stone", "kidney stones", "uti", "urinary tract",
-        "allergy", "allergies", "allergic", "eczema", "dermatitis", "hives", "rash",
-        "depression", "clinical depression", "depressive disorder",
-        "cancer", "tumor", "tumor cells", "biopsy", "oncology",
-        "nausea", "nauseous", "vomiting", "vomit", "diarrhea", "constipation", "vertigo"
-    ]):
-        return True
-
-    # 10. General medical and clinical vocabulary
-    if any(k in lower for k in [
-        "disease", "diseases", "disorder", "disorders", "syndrome", "symptom", "symptoms",
-        "diagnosis", "prognosis", "etiology", "pathology", "clinical causes", "clinical management",
-        "medical encyclopedia", "gale encyclopedia", "medical literature", "medical advice",
-        "how to treat", "treatment for", "cure for", "medicine for", "management of",
-        "goals of treatment", "therapeutic management", "clinical therapies", "remedies for"
-    ]):
+    # 11. Clinical disease suffixes (-itis, -algia, -emia, -pathy)
+    if re.search(r"\b\w+(?:itis|algia|emia|opathy)\b", lower):
         return True
 
     return False
@@ -285,151 +289,83 @@ def is_therapist_query(user_text: str) -> bool:
 
 
 def classify_intent_heuristic(user_text: str) -> str:
-    """Heuristic rule-based intent classification adhering to hierarchical priorities (0-9)."""
+    """Minimal safety-first fallback classification if AI LLM is completely unreachable."""
     clean = user_text.strip()
     if not clean:
         return "GENERAL_CONVERSATION"
 
     lower = clean.lower()
 
-    # PRIORITY 1: High-Risk Safety Guard Check (must override normal routing)
+    # Safety
     safety = assess_safety(user_text)
-    if safety["risk_level"] == "HIGH" or any(k in lower for k in [
-        "not live anymore", "not living anymore", "feeling to not live", "feel like not living",
-        "end my life", "end it all", "kill myself", "suicide", "suicidal", "want to die",
-        "wanna die", "wish i was dead", "give up on life", "done with life"
-    ]):
+    if safety["risk_level"] == "HIGH":
         return "CRISIS_RELATED"
-
-    # PRIORITY 2: Urgent Medical / Acute Health Symptoms
     urgent = screen_urgent_medical(user_text)
     if urgent["is_urgent"]:
         return "URGENT_HEALTH"
-
-    # PRIORITY 4: Crisis-related but educational or third-person (Non-immediate)
     if safety["safety_status"] == "EDUCATIONAL_OR_THIRD_PERSON":
         return "CRISIS_RELATED"
 
-    # PRIORITY 3: General Health Information, Physical Symptoms & Disease Inquiries
-    if is_physical_health_query(user_text):
-        return "HEALTH_INFORMATION"
-
-    # OUT-OF-SCOPE / MATH DOMAIN BOUNDARY CHECK (Must intercept non-medical queries before tools)
+    # Math or out-of-scope non-wellness
     if is_math_query(user_text) or is_out_of_scope(user_text):
         return "OUT_OF_SCOPE"
 
-    # THERAPIST LOCATOR REQUEST (Inspired by SafeSpace AI)
+    # Physical symptom or medical query
+    if is_physical_health_query(user_text):
+        return "HEALTH_INFORMATION"
+
+    # Therapist request
     if is_therapist_query(user_text):
         return "THERAPIST_REQUEST"
 
-
-    # PRIORITY 5: Journaling requests
-    if any(k in lower for k in [
-        "/journal", "journal", "journaling", "journal entry", "write in my journal",
-        "save to journal", "in my journal", "show my journal", "open my journal"
-    ]):
+    # Explicit tool commands
+    if lower.startswith("/journal"):
         return "JOURNAL_REQUEST"
+    if lower.startswith("/goal"):
+        return "GOAL_REQUEST"
 
-    # PRIORITY 6: Goal requests (NEVER for medical queries or disease treatments)
-    if not is_physical_health_query(user_text):
-        if lower.startswith("/goal") or (
-            ("goal" in lower or "goals" in lower) and any(
-                act in lower for act in [
-                    "set", "create", "make", "add", "show", "view", "list", "mark",
-                    "complete", "finish", "my goal", "my goals", "study goal", "help me"
-                ]
-            ) and not any(w in lower for w in [
-                "disease", "treatment", "medicine", "doctor", "health", "cure", "pain",
-                "symptom", "causes", "hypertension", "diabetes", "migraine", "asthma"
-            ])
-        ):
-            return "GOAL_REQUEST"
-
-    # PRIORITY 6: Planning requests
-    if any(k in lower for k in [
-        "study plan", "study schedule", "plan my week", "plan my study", "plan my exam",
-        "routine", "time management", "organize my day", "exam preparation plan",
-        "make a plan for my exam", "plan for studying", "help me plan my study schedule"
-    ]):
-        return "PLANNING_REQUEST"
-
-    # PRIORITY 7: Explicit Grounding Exercise Requests
-    if any(k in lower for k in [
-        "want a breathing exercise", "give me a grounding", "breathing exercise", "breathwork",
-        "box breathing", "help me breathe", "5-4-3-2-1", "senses grounding", "help me calm down",
-        "need help calming down", "help calming down", "calm down", "guide me through breathing",
-        "guide me through 5-4-3-2-1", "need a grounding exercise"
-    ]):
+    # Minimal fallback for basic wellness
+    if "breathe" in lower or "grounding" in lower:
         return "GROUNDING_REQUEST"
-
-    # PRIORITY 8: Coping Requests
-    if any(k in lower for k in [
-        "cope", "coping", "deal with", "manage stress", "manage college", "manage pressure",
-        "handle stress", "ways to manage", "ways to handle", "tips for stress", "advice for burnout",
-        "overwhelmed with college", "overwhelmed with school", "overwhelmed with work",
-        "how can i handle", "how do i handle", "how to handle", "what can i do to",
-        "what should i do", "what can i do", "how to deal with", "give me ways"
-    ]):
-        return "COPING_REQUEST"
-
-    # PRIORITY 8 (Cont): General Emotional Support
-    if any(k in lower for k in [
-        "stress", "stressed", "anxious", "anxiety", "sad", "depressed", "lonely",
-        "overwhelm", "overwhelmed", "exhausted", "burnout", "scared", "worried",
-        "crying", "upset", "angry", "feeling down", "hard day", "failing",
-        "frustrated", "frustration", "don't know what to do", "feeling lost",
-        "butterflies in my stomach", "butterflies", "bad day", "terrible day",
-        "someone to talk to"
-    ]):
+    if any(w in lower for w in ["cope", "stress", "anxious", "sad", "overwhelm"]):
         return "EMOTIONAL_SUPPORT"
-
-    # Memory vault requests
-    if any(k in lower for k in ["remember that", "what name should you call me", "what should you call me", "what is my preferred name", "view memory"]):
-        return "MEMORY_REQUEST"
-
-    # PRIORITY 9: General Conversation (Greetings, Identity, Casual)
-    if any(k in lower for k in [
-        "what is your name", "what's your name", "who are you",
-        "tell me what you can do", "what can you do", "who made you",
-        "who created you", "how are you", "hello", "hi mindly",
-        "hey mindly", "good morning", "good evening", "good afternoon",
-        "nice to meet you", "tell me a joke", "tell me something interesting",
-        "thank you", "thanks"
-    ]):
-        return "GENERAL_CONVERSATION"
 
     return "GENERAL_CONVERSATION"
 
 
-INTENT_PROMPT = """You are an intent classification component for Mindly, a mental wellness support assistant.
-Classify the user's message into EXACTLY ONE of the following categories:
-- GENERAL_CONVERSATION (greetings, casual conversation, questions about bot identity or capabilities)
-- HEALTH_INFORMATION (physical symptoms, stomach pain, headaches, back pain, nausea, fever, cough, medical questions about conditions like hypertension, migraine, insomnia, dehydration)
-- URGENT_HEALTH (potentially acute or life-threatening symptoms such as severe worsening pain, fainting, difficulty breathing, chest pain, vomiting blood, rigid abdomen)
-- EMOTIONAL_SUPPORT (sharing emotional distress, sadness, loneliness, academic stress, feeling overwhelmed, nervous butterflies)
-- GROUNDING_REQUEST (explicitly asking for help calming down right now, breathing exercises, 5-4-3-2-1 exercises)
-- COPING_REQUEST (asking for practical strategies or methods to manage problems/stress/exams)
-- JOURNAL_REQUEST (asking to record or save thoughts to the reflection journal)
-- GOAL_REQUEST (asking to create, view, or complete goals and habits)
-- PLANNING_REQUEST (asking for help organizing or study schedule routines)
-- MEMORY_REQUEST (asking to remember a personal preference or asking what name to call the user)
-- THERAPIST_REQUEST (asking to find, locate, or recommend licensed clinical therapists, psychologists, psychiatrists, counselors, or mental health clinics)
-- CRISIS_RELATED (mentions of self-harm, suicidal ideation, or acute danger)
-- OUT_OF_SCOPE (questions completely unrelated to wellness, mental health, student wellbeing, or medical guidance, such as coding, stock market, sports scores, mechanical repair)
+INTENT_PROMPT = """Classify the user input into exactly ONE category:
+HEALTH_INFORMATION: physical diseases, illnesses, medical conditions, acne, skin issues, bodily pain, headaches, fever, indigestion, hypertension, asthma, diabetes.
+EMOTIONAL_SUPPORT: mental wellness, emotions, feelings, jealousy, sadness, loneliness, heartbreak, feeling down, relationship concerns.
+COPING_REQUEST: practical coping strategies, stress management, study advice, burnout handling, ways to manage pressure.
+GROUNDING_REQUEST: breathing exercises, calming down, sensory grounding techniques, panic relief.
+JOURNAL_REQUEST: personal reflection journaling, saving entries to journal, viewing journal.
+GOAL_REQUEST: setting, tracking, or viewing goals and habits.
+PLANNING_REQUEST: study schedules, time management plans, organizing routines.
+THERAPIST_REQUEST: finding licensed human therapists, psychologists, counselors, or mental health clinics.
+OUT_OF_SCOPE: computer programming, coding, math calculations, stock market, non-wellness topics.
+GENERAL_CONVERSATION: greetings, casual talk, questions about your identity or abilities.
 
-Important rule: If the message describes a physical health symptom (such as stomach pain, headache, nausea, back pain) even if stress is mentioned, classify it as HEALTH_INFORMATION.
-If acute or severe red-flag symptoms are present, classify it as URGENT_HEALTH.
-If the query is clearly an out-of-scope non-wellness/non-medical inquiry, classify it as OUT_OF_SCOPE.
+Examples:
+"how to handle skin acnes" -> HEALTH_INFORMATION
+"what causes back pain" -> HEALTH_INFORMATION
+"how to stop being jealous" -> EMOTIONAL_SUPPORT
+"i feel sad and lonely" -> EMOTIONAL_SUPPORT
+"how can i manage stress" -> COPING_REQUEST
+"ways to deal with burnout" -> COPING_REQUEST
+"teach me box breathing" -> GROUNDING_REQUEST
+"help me calm down" -> GROUNDING_REQUEST
+"write this in my journal" -> JOURNAL_REQUEST
+"set a goal to exercise" -> GOAL_REQUEST
+"help me plan my study schedule" -> PLANNING_REQUEST
+"find a therapist near me" -> THERAPIST_REQUEST
+"write code in python" -> OUT_OF_SCOPE
+"hello how are you" -> GENERAL_CONVERSATION
 
-Respond with ONLY the exact category name. Nothing else.
-"""
+Respond with ONLY the category name. Nothing else."""
 
 
 def classify_intent(user_text: str, llm=None) -> str:
-    """Classify user intent using hierarchical two-stage pipeline:
-    Stage 1: Deterministic safety and priority rule filters.
-    Stage 2: LLM classifier for ambiguous phrasing (constrained by safety).
-    """
+    """Classify user intent by letting the AI dynamically decide, bounded by deterministic safety."""
     clean = user_text.strip()
     if not clean:
         return "GENERAL_CONVERSATION"
@@ -448,42 +384,33 @@ def classify_intent(user_text: str, llm=None) -> str:
     if safety["safety_status"] == "EDUCATIONAL_OR_THIRD_PERSON":
         return "CRISIS_RELATED"
 
-    # Stage 1 (Cont): Physical Health Symptoms / Conditions (takes priority over general emotional words)
-    if is_physical_health_query(user_text):
-        return "HEALTH_INFORMATION"
-
-    # Arithmetic expressions (2+3, 2+2, etc.) are strictly OUT_OF_SCOPE
+    # Math expressions (2+3, 2+2, etc.) are strictly OUT_OF_SCOPE
     if evaluate_math_expression(user_text) is not None:
         return "OUT_OF_SCOPE"
 
-    # Check for clearly out-of-scope / unnecessary queries before passing to LLM
-    if is_out_of_scope(user_text):
-        return "OUT_OF_SCOPE"
-
-
-    # Stage 1 (Cont): Explicit Tool Triggers & Conversational Filters
-    heuristic_intent = classify_intent_heuristic(user_text)
-    if heuristic_intent in [
-        "JOURNAL_REQUEST", "GOAL_REQUEST", "PLANNING_REQUEST",
-        "MEMORY_REQUEST", "GROUNDING_REQUEST", "COPING_REQUEST",
-        "HEALTH_INFORMATION", "URGENT_HEALTH", "CRISIS_RELATED",
-        "OUT_OF_SCOPE", "THERAPIST_REQUEST",
-    ]:
-        return heuristic_intent
-
-    # If heuristic detected a clear conversational greeting or identity query, return immediately
+    # Explicit slash commands (/journal, /goal)
     lower_clean = clean.lower()
-    if bool(re.search(r"\b(?:hello|hi|hey|good\s+morning|good\s+evening|good\s+afternoon|how\s+are\s+you|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+(?:do|help)|who\s+made\s+you|hi\s+again|thank\s+you|thanks)\b", lower_clean)):
-        return "GENERAL_CONVERSATION"
+    if lower_clean.startswith("/journal"):
+        return "JOURNAL_REQUEST"
+    if lower_clean.startswith("/goal"):
+        return "GOAL_REQUEST"
 
-    # Stage 2: LLM Classifier for Nuanced / Ambiguous Messages
-    if llm is not None:
+    # Stage 2: LET THE AI DECIDE INTENT DYNAMICALLY
+    effective_llm = llm
+    if effective_llm is None:
+        try:
+            from config.llm_provider import get_llm
+            effective_llm = get_llm(temperature=0.0)
+        except Exception:
+            effective_llm = None
+
+    if effective_llm is not None:
         try:
             messages = [
                 SystemMessage(content=INTENT_PROMPT),
-                HumanMessage(content=f"User message: \"{user_text}\"\nIntent:"),
+                HumanMessage(content=f'Input: "{user_text}"\nCategory:'),
             ]
-            response = llm.invoke(messages)
+            response = effective_llm.invoke(messages)
             raw_category = str(response.content).strip().upper()
             for cat in INTENT_CATEGORIES:
                 if cat in raw_category:
@@ -494,5 +421,7 @@ def classify_intent(user_text: str, llm=None) -> str:
         except Exception:
             pass
 
-    return heuristic_intent
+    # Stage 3: Fallback heuristic only if AI is unreachable
+    return classify_intent_heuristic(user_text)
+
 

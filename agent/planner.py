@@ -132,21 +132,10 @@ def plan_action(
         }
 
     # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
     # PRIORITY 3: GENERAL HEALTH INFORMATION (Gale RAG)
     # --------------------------------------------------------------------------
-    if (
-        detected_intent in ["HEALTH_INFORMATION", "INFORMATION_REQUEST"]
-        or health_priority == "ROUTINE"
-        or is_physical_health_query(clean_input)
-        or any(
-            k in lower for k in [
-                "hypertension", "migraine", "symptoms of migraine", "symptoms of hypertension",
-                "blood pressure", "headache symptoms", "what is insomnia", "what is dehydration",
-                "causes of back pain", "causes of insomnia", "throat hurt", "coughing for three days",
-                "iron deficiency", "symptoms associated with"
-            ]
-        )
-    ):
+    if detected_intent in ["HEALTH_INFORMATION", "INFORMATION_REQUEST"]:
         reason = "Priority 3 General Health: identified health knowledge inquiry; routed to Gale Encyclopedia of Medicine retriever."
         if any(w in lower for w in ["scared", "stress", "stressed", "anxious", "nervous"]) or detected_emotion in ["anxious", "stressed", "fear", "sad", "overwhelmed"]:
             reason = "Priority 3 General Health: identified physical symptom with emotional context; routed to Gale Encyclopedia of Medicine retriever with supportive framing."
@@ -172,7 +161,7 @@ def plan_action(
     # --------------------------------------------------------------------------
     # DOMAIN BOUNDARY GUARDRAIL: OUT-OF-SCOPE / NON-MEDICAL / MATH
     # --------------------------------------------------------------------------
-    if detected_intent == "OUT_OF_SCOPE" or is_out_of_scope(clean_input):
+    if detected_intent == "OUT_OF_SCOPE":
         return {
             "selected_action": "DIRECT_RESPONSE",
             "tool_name": "scope_boundary_protocol",
@@ -182,8 +171,7 @@ def plan_action(
     # --------------------------------------------------------------------------
     # THERAPIST LOCATOR REQUEST (Inspired by SafeSpace AI)
     # --------------------------------------------------------------------------
-    from agent.intent import is_therapist_query
-    if detected_intent == "THERAPIST_REQUEST" or is_therapist_query(clean_input):
+    if detected_intent == "THERAPIST_REQUEST":
         return {
             "selected_action": "USE_THERAPIST_TOOL",
             "tool_name": "therapist_locator",
@@ -191,12 +179,9 @@ def plan_action(
         }
 
     # --------------------------------------------------------------------------
-    # PRIORITY 5: JOURNAL REQUEST (Only if not a medical/disease query)
+    # PRIORITY 5: JOURNAL REQUEST
     # --------------------------------------------------------------------------
-    if not is_physical_health_query(clean_input) and (
-        detected_intent == "JOURNAL_REQUEST"
-        or any(k in lower for k in ["/journal", "journal this", "save to journal", "journal entry", "make a journal entry", "write in my journal", "write this in my journal", "show my journal", "show my recent journal entries", "open my journal"])
-    ):
+    if detected_intent == "JOURNAL_REQUEST":
         return {
             "selected_action": "USE_JOURNAL_TOOL",
             "tool_name": "journal_recorder",
@@ -204,27 +189,16 @@ def plan_action(
         }
 
     # --------------------------------------------------------------------------
-    # PRIORITY 6: GOAL / PLANNING REQUEST (Only if not a medical/disease query)
+    # PRIORITY 6: GOAL / PLANNING REQUEST
     # --------------------------------------------------------------------------
-    if not is_physical_health_query(clean_input) and (
-        detected_intent == "GOAL_REQUEST"
-        or any(k in lower for k in [
-            "/goal", "create a goal", "create goal", "set a goal", "add a goal",
-            "view goals", "list goals", "my goals", "complete goal", "mark goal",
-            "mark my study goal", "mark my goal complete", "goal as completed", "show my goals", "help me set a study goal"
-        ])
-    ):
+    if detected_intent == "GOAL_REQUEST":
         return {
             "selected_action": "USE_GOAL_TOOL",
             "tool_name": "goal_tracker",
             "reasoning_summary": "Priority 6 Goal: identified goal planning request; routed to habits and goals tracker.",
         }
 
-    if detected_intent == "PLANNING_REQUEST" or any(k in lower for k in [
-        "study plan", "study schedule", "plan my week", "plan my study",
-        "routine", "time management", "organize my day", "plan my exam preparation",
-        "make a plan for my exam", "help me plan my study schedule"
-    ]):
+    if detected_intent == "PLANNING_REQUEST":
         return {
             "selected_action": "USE_COPING_TOOL",
             "tool_name": "coping_strategy",
@@ -232,7 +206,7 @@ def plan_action(
         }
 
     # Long-term memory vault requests
-    if detected_intent == "MEMORY_REQUEST" or any(k in lower for k in ["remember that", "what name should you call me", "what should you call me", "view memory"]):
+    if detected_intent == "MEMORY_REQUEST":
         return {
             "selected_action": "USE_MEMORY_TOOL",
             "tool_name": "memory_vault",
@@ -252,12 +226,7 @@ def plan_action(
     # --------------------------------------------------------------------------
     # PRIORITY 7: EXPLICIT GROUNDING REQUEST
     # --------------------------------------------------------------------------
-    if detected_intent == "GROUNDING_REQUEST" or any(k in lower for k in [
-        "help me calm down", "calm me down", "breathing exercise", "breathwork",
-        "box breathing", "help me breathe", "5-4-3-2-1", "senses grounding",
-        "guide me through breathing", "guide me through 5-4-3-2-1", "need a grounding exercise",
-        "give me the 5-4-3-2-1", "want a breathing exercise"
-    ]):
+    if detected_intent == "GROUNDING_REQUEST":
         if detected_emotion == "anxious" or any(w in lower for w in ["panic", "racing", "breath", "breathe", "heart"]):
             tool = "box_breathing"
             summary = "Priority 7 Grounding: detected acute anxiety/panic; selected structured Box Breathing (4-4-4-4)."
@@ -276,12 +245,7 @@ def plan_action(
     # --------------------------------------------------------------------------
     # PRIORITY 8: COPING / EMOTIONAL SUPPORT
     # --------------------------------------------------------------------------
-    if detected_intent == "COPING_REQUEST" or any(k in lower for k in [
-        "how can i deal with", "how do i deal with", "deal with stress", "deal with exam",
-        "coping strategies", "coping strategy", "give me coping strategies", "how can i handle",
-        "how do i handle", "ways to manage", "how to cope", "manage stress", "manage college pressure",
-        "give me some ways to manage", "overwhelmed with college work"
-    ]):
+    if detected_intent == "COPING_REQUEST":
         return {
             "selected_action": "USE_COPING_TOOL",
             "tool_name": "coping_strategy",
@@ -303,7 +267,7 @@ def plan_action(
                 "tool_name": "box_breathing" if "exam" in lower else "guided_reflection",
                 "reasoning_summary": "Priority 8 Emotional Support: detected anxiety or overwhelm; selected calming exercise.",
             }
-        # Context 3: General emotional sharing (sadness, loneliness, bad day) -> Direct empathetic listening
+        # Context 3: General emotional sharing (sadness, loneliness, bad day, jealousy) -> Direct empathetic listening
         return {
             "selected_action": "DIRECT_RESPONSE",
             "tool_name": "direct_conversation",
@@ -311,25 +275,9 @@ def plan_action(
         }
 
     # --------------------------------------------------------------------------
-    # OUT-OF-SCOPE / UNNECESSARY QUERIES ROUTING
-    # --------------------------------------------------------------------------
-    if detected_intent == "OUT_OF_SCOPE":
-        return {
-            "selected_action": "DIRECT_RESPONSE",
-            "tool_name": "scope_boundary_protocol",
-            "reasoning_summary": "Scope Boundary Notice: query is unrelated to wellness, mental health, or medical guidance; guiding user to medical/wellness scope.",
-        }
-
-    # --------------------------------------------------------------------------
     # PRIORITY 9: GENERAL CONVERSATION
     # --------------------------------------------------------------------------
-    if detected_intent == "GENERAL_CONVERSATION" or any(
-        re.search(rf"\b{re.escape(phrase)}\b", lower) for phrase in [
-            "hello", "hi", "hey", "who are you", "what is your name", "what can you do",
-            "what is my", "what's my", "who am i", "do you remember", "good morning",
-            "tell me a joke", "tell me something interesting"
-        ]
-    ):
+    if detected_intent == "GENERAL_CONVERSATION":
         return {
             "selected_action": "DIRECT_RESPONSE",
             "tool_name": "direct_conversation",
