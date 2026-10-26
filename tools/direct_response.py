@@ -24,14 +24,30 @@ SCOPE_NOTICE_MESSAGE = (
     "• Stress regulation, breathing exercises, and evidence-based clinical wellness management."
 )
 
+CLARIFICATION_MESSAGE = (
+    "I'm here with you, and I want to make sure I support you with exactly what you need right now.\n\n"
+    "Here are some ways we can work together:\n"
+    "• **Emotional Support & Reflection**: Talk through difficult feelings, stress, burnout, or relationships.\n"
+    "• **Grounding & Calming Exercises**: Step through Box Breathing (4-4-4-4), 5-4-3-2-1 sensory grounding, or body awareness.\n"
+    "• **Actionable Coping Strategies**: Practical steps for anxiety, overthinking, sleep hygiene, or panic.\n"
+    "• **Health & Medical Information**: Clear, evidence-based health guidance from the *Gale Encyclopedia of Medicine*.\n"
+    "• **Reflective Journal & Habits**: Log your mood, review thoughts, or set mindful personal goals.\n\n"
+    "Could you share a bit more about what you're experiencing or what would be most helpful right now?"
+)
+
 
 def generate_direct_response(
     user_text: str,
     messages: Optional[List[BaseMessage]] = None,
     llm=None,
     is_scope_notice: bool = False,
+    is_clarification: bool = False,
 ) -> str:
-    """Generate a dynamic conversational reply or medical/wellness scope guidance."""
+    """Generate a dynamic conversational reply, scope guidance, or clarification prompt."""
+    # Ambiguous or underspecified input clarification prompt
+    if is_clarification:
+        return CLARIFICATION_MESSAGE
+
     # Enforce medical domain scope boundary on explicit notice or math
     if is_scope_notice or evaluate_math_expression(user_text) is not None:
         return SCOPE_NOTICE_MESSAGE
@@ -83,6 +99,42 @@ def generate_direct_response(
             if query_cat in cat or cat in query_cat:
                 return f"Your favorite {query_cat} is **{val}**! You shared that with me earlier in our reflection."
 
+    # Missing image check (e.g. "What is in this picture?" when no image is attached)
+    if any(q in lower for q in [
+        "what is in this picture", "what is in this image", "what's in this picture",
+        "describe this picture", "analyze this image", "what do you see in this picture",
+        "what is this image", "describe this image", "look at this picture"
+    ]):
+        return (
+            "📷 I don't see an image attached to your message. "
+            "Please upload an image using the attachment button so I can view and analyze it for you!"
+        )
+
+    # Mood recall check (e.g. "What did I tell you about my mood earlier?", "What was my mood earlier?")
+    if any(q in lower for q in [
+        "what did i tell you about my mood", "what was my mood earlier", "what did i say about my mood",
+        "my mood earlier", "did i tell you my mood"
+    ]):
+        from memory.database import db
+        try:
+            saved_mood = db.get_memory("today_mood") or db.get_memory("mood")
+            if not saved_mood:
+                entries = db.get_journal_entries(limit=5)
+                for e in entries:
+                    if e.get("mood") and e.get("mood") != "reflective":
+                        saved_mood = f"{e.get('mood')} (Recorded entry: \"{e.get('entry_text') or e.get('entry')}\")"
+                        break
+                    elif "mood" in (e.get("entry_text") or e.get("entry") or "").lower():
+                        saved_mood = e.get("entry_text") or e.get("entry")
+                        break
+            if saved_mood:
+                return f"Earlier, you recorded your mood as: **{saved_mood}**."
+            return (
+                "I checked your records, but you haven't mentioned or recorded your mood yet in this session or journal. "
+                "How are you feeling right now? If you'd like, we can record it together!"
+            )
+        except Exception:
+            return "You haven't recorded or mentioned your mood yet in our conversation. How are you feeling right now?"
 
     # If LLM is available, invoke it with the empathetic Mindly system prompt
     if llm is None:

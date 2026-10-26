@@ -120,17 +120,19 @@ def is_educational_or_third_person(user_text: str) -> bool:
     ]):
         return True
 
-    # 3. Third-person mentions (concerning another person, friend, family member)
+    # 3. Third-person mentions (concerning another person, friend, family member, colleague)
     third_person_subjects = [
         "my friend", "a friend", "my cousin", "my brother", "my sister",
         "my mother", "my father", "my dad", "my mom", "my classmate",
         "someone i know", "a person i know", "my neighbor", "celebrity",
-        "someone else", "another person"
+        "someone else", "another person", "my coworker", "a coworker",
+        "my colleague", "a colleague", "my partner", "my spouse", "my roommate"
     ]
     if any(subj in lower for subj in third_person_subjects):
         return True
 
     return False
+
 
 
 def assess_safety(user_text: str) -> Dict[str, Any]:
@@ -247,10 +249,20 @@ def screen_urgent_medical(user_text: str) -> Dict[str, Any]:
         flagged.append("chest pain or tightness")
 
     if any(k in lower for k in [
+        "too much medication", "took too much", "too many pills", "overdose", "accidentally took extra",
+        "swallowed pills by mistake", "swallowed too many", "too many prescription pills",
+        "poison", "poisoning", "ingested chemicals", "drain cleaner", "swallowed bleach",
+        "drank bleach", "cleaner", "chemical"
+    ]) or bool(re.search(r"\b(?:swallowed|took|ingested|drank)\s+(?:too\s+many|excessive|accidental|a\s+bunch|poison|cleaner|chemical|bleach)\b", lower)) or bool(re.search(r"\b(?:accidentally|accidental)\s+(?:swallowed|took|ingested|drank)\b", lower)):
+        flagged.append("potential accidental medication overdose or poisoning")
+
+
+    if any(k in lower for k in [
         "fainting", "fainted", "feel faint", "feeling faint", "felt faint", "pass out", "passed out",
-        "syncope", "loss of consciousness", "blacking out", "about to faint"
+        "syncope", "loss of consciousness", "blacking out", "about to faint",
+        "collapsed", "unresponsive", "not responding"
     ]):
-        flagged.append("fainting or loss of consciousness")
+        flagged.append("fainting, collapse, or loss of consciousness")
 
     if any(k in lower for k in [
         "vomiting blood", "vomit blood", "blood in vomit", "throwing up blood", "hematemesis"

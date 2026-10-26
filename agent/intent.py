@@ -18,7 +18,7 @@ Classifies user messages into standardized conversational, educational, wellness
 import ast
 import operator
 import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TypedDict
 from langchain_core.messages import HumanMessage, SystemMessage
 from agent.safety import assess_safety, screen_urgent_medical, is_educational_or_third_person
 
@@ -94,8 +94,9 @@ def is_math_query(text: str) -> bool:
         return False
     if evaluate_math_expression(clean) is not None:
         return True
-    if re.search(r"\b(?:calculate|calc|math|arithmetic|solve\s+equation|evaluate)\b", clean) and re.search(r"[\d\+\-\*\/\^\=]", clean):
-        return True
+    if re.search(r"\b(?:calculate|calc|math|arithmetic|algebra|equation|evaluate)\b", clean) and re.search(r"[\d\+\-\*\/\^\=\w]", clean):
+        if any(w in clean for w in ["solve", "equation", "algebra", "calculate", "derivative", "integral", "x", "="]):
+            return True
     if any(q in clean for q in ["can you do math", "calculate 2", "what is 2", "can you calculate", "solve this equation", "how much is 2"]):
         return True
     return False
@@ -150,10 +151,11 @@ def is_physical_health_query(user_text: str) -> bool:
         r"\bacidity\b", r"\bacid\s+reflux\b", r"\bgerd\b", r"\bheartburn\b", r"\bindigestion\b", r"\bgastritis\b", r"\bdyspepsia\b",
         r"\bhypertension\b", r"\bhigh\s+blood\s+pressure\b", r"\blow\s+blood\s+pressure\b", r"\bhypotension\b",
         r"\bmigraine\b", r"\bheadache\b", r"\bcluster\s+headache\b", r"\btension\s+headache\b",
+        r"\b(?:noggin|head)\s+(?:is\s+)?pounding\b", r"\bpounding\s+(?:head|noggin)\b", r"\bhead\s+hurts?\b",
         r"\bdiabetes\b", r"\bdiabetic\b", r"\bblood\s+sugar\b", r"\bglucose\b", r"\binsulin\b",
         r"\basthma\b", r"\bbronchitis\b", r"\bpneumonia\b", r"\bwheezing\b", r"\brespiratory\b", r"\blungs?\b",
         r"\bstomach\s+pain\b", r"\babdominal\s+pain\b", r"\bpain\s+in\s+(?:my\s+)?stomach\b", r"\bstomach\s+hurts?\b",
-        r"\bstomach\s+ache\b", r"\bstomachache\b", r"\bbelly\s+ache\b", r"\btummy\s+hurt\b",
+        r"\bstomach\s+ache\b", r"\bstomachache\b", r"\bbelly\s+ache\b", r"\btummy\s+hurt\b", r"\bstommach\s+herts?\b", r"\bstommach\b",
         r"\bulcer\b", r"\bpeptic\s+ulcer\b", r"\birritable\s+bowel\b", r"\bibs\b", r"\bcolitis\b", r"\bbloating\b",
         r"\binsomnia\b", r"\bsleep\s+disorder\b", r"\bsleep\s+apnea\b", r"\brestless\s+legs\b", r"\bcircadian\b",
         r"\barthritis\b", r"\bosteoarthritis\b", r"\brheumatoid\b", r"\bjoint\s+pain\b", r"\bback\s+pain\b", r"\bneck\s+pain\b", r"\bgout\b",
@@ -239,13 +241,15 @@ def is_out_of_scope(user_text: str) -> bool:
         # Automotive, mechanical, electrical
         r"\b(?:car\s+engine|transmission|spark\s+plug|oil\s+change|tire\s+pressure|brake\s+pads|fix\s+my\s+car|cylinder\s+head|fix\s+car)\b",
         # Advanced math calculation / complex algebra / calculus
-        r"\b(?:solve\s+equation|integral\s+of|derivative\s+of|matrix\s+multiplication|eigenvalues|quadratic\s+formula|calculus|can\s+you\s+do\s+math)\b",
+        r"\b(?:algebra|algebraic|equation|solve\s+(?:\w+\s+)?equation|integral\s+of|derivative\s+of|matrix\s+multiplication|eigenvalues|quadratic\s+formula|calculus|can\s+you\s+do\s+math)\b",
         # Video game cheats, betting, sports match scores
-        r"\b(?:cheat\s+codes|gta\s+5\s+cheats|fifa\s+coins|fortnite\s+vbucks|cricket\s+score|nba\s+score|premier\s+league\s+table|betting\s+odds|who\s+won\s+the\s+(?:match|game|cricket|football))\b",
+        r"\b(?:cheat\s+codes|gta\s+5\s+cheats|fifa|fifa\s+coins|fortnite\s+vbucks|cricket\s+score|nba\s+score|premier\s+league\s+table|betting\s+odds|who\s+won\s+the\s+(?:match|game|cricket|football|fifa|world\s+cup|super\s+bowl|olympics)|world\s+cup|super\s+bowl|olympics)\b",
         # Legal litigation
         r"\b(?:legal\s+contract|sue\s+my|lawsuit|attorney\s+fees|court\s+hearing)\b",
         # General non-medical trivia / geopolitics
         r"\b(?:capital\s+of|election\s+results|weather\s+in|who\s+is\s+the\s+president|president\s+of\s+the)\b",
+        # Non-medical science, energy, physics, astronomy
+        r"\b(?:solar\s+panel|solar\s+panels|renewable\s+energy|quantum\s+physics|thermodynamics|black\s+hole|astronomy|chemical\s+reaction|nuclear\s+energy|how\s+do\s+airplanes|how\s+do\s+rockets|photosynthesis)\b",
     ]
     for pat in out_of_scope_patterns:
         if re.search(pat, lower):
@@ -322,140 +326,523 @@ def classify_intent_heuristic(user_text: str) -> str:
     if is_therapist_query(user_text):
         return "THERAPIST_REQUEST"
 
-    # Explicit tool commands
-    if lower.startswith("/journal"):
+    # Slash and explicit tool commands
+    if lower.startswith("/journal") or "record" in lower and "mood" in lower:
         return "JOURNAL_REQUEST"
-    if lower.startswith("/goal"):
+    if lower.startswith("/goal") or ("create" in lower or "set" in lower) and "goal" in lower:
         return "GOAL_REQUEST"
+    if "what did i tell you" in lower or "what is my preferred name" in lower:
+        return "MEMORY_REQUEST"
 
     # Minimal fallback for basic wellness
     if any(w in lower for w in ["breathe", "breathing", "breath", "grounding", "box breathing"]):
         return "GROUNDING_REQUEST"
-    if any(w in lower for w in ["cope", "stress", "anxious", "sad", "overwhelm"]):
+    if any(w in lower for w in ["cope", "stress", "anxious", "sad", "overwhelm", "overthinking", "nervous"]):
         return "EMOTIONAL_SUPPORT"
 
     return "GENERAL_CONVERSATION"
 
 
-INTENT_PROMPT = """Classify the user input into exactly ONE category:
-HEALTH_INFORMATION: physical diseases, illnesses, medical conditions, acne, skin issues, bodily pain, shoulder pain, back pain, joint pain, headaches, fever, indigestion, hypertension, asthma, diabetes.
-EMOTIONAL_SUPPORT: mental wellness, emotions, feelings, jealousy, sadness, loneliness, heartbreak, feeling down, relationship concerns.
-COPING_REQUEST: practical coping strategies, stress management, study advice, burnout handling, ways to manage pressure, questions asking "what should I do", "how can I cope", "ways to handle".
-GROUNDING_REQUEST: breathing exercises, calming down, sensory grounding techniques, panic relief ("need help calming down", "help me breathe").
-MEMORY_REQUEST: remembering user's name, user preferences, recalling stored memories, questions like "what did I ask you to remember", "remember that...".
-JOURNAL_REQUEST: personal reflection journaling, saving entries to journal, viewing journal.
-GOAL_REQUEST: setting, tracking, or viewing goals and habits.
-PLANNING_REQUEST: study schedules, time management plans, organizing routines.
-THERAPIST_REQUEST: finding licensed human therapists, psychologists, counselors, or mental health clinics.
-OUT_OF_SCOPE: computer programming, coding, math calculations, stock market, non-wellness topics.
-GENERAL_CONVERSATION: greetings, casual talk, jokes, telling interesting facts, questions about your identity or abilities.
+# ------------------------------------------------------------------------------
+# STRUCTURED INTENT CLASSIFICATION SPECIFICATION & SCHEMAS
+# ------------------------------------------------------------------------------
+import logging
+logger = logging.getLogger("mindly.routing")
 
-Examples:
-"how to handle shoulder pain" -> HEALTH_INFORMATION
-"how to handle skin acnes" -> HEALTH_INFORMATION
-"what causes back pain" -> HEALTH_INFORMATION
-"how to stop being jealous" -> EMOTIONAL_SUPPORT
-"i feel sad and lonely" -> EMOTIONAL_SUPPORT
-"what should I do when I feel emotionally exhausted?" -> COPING_REQUEST
-"how can i manage stress" -> COPING_REQUEST
-"ways to deal with burnout" -> COPING_REQUEST
-"teach me box breathing" -> GROUNDING_REQUEST
-"I feel anxious and need help calming down." -> GROUNDING_REQUEST
-"help me calm down" -> GROUNDING_REQUEST
-"remember that I prefer being called Alex" -> MEMORY_REQUEST
-"what did I ask you to remember?" -> MEMORY_REQUEST
-"what is my preferred name?" -> MEMORY_REQUEST
-"write this in my journal" -> JOURNAL_REQUEST
-"set a goal to exercise" -> GOAL_REQUEST
-"help me plan my study schedule" -> PLANNING_REQUEST
-"tell me a joke" -> GENERAL_CONVERSATION
-"tell me something interesting" -> GENERAL_CONVERSATION
-"find a therapist near me" -> THERAPIST_REQUEST
-"write code in python" -> OUT_OF_SCOPE
-"hello how are you" -> GENERAL_CONVERSATION
+class IntentClassificationResult(TypedDict):
+    intent: str                  # Canonical intent string
+    confidence: float            # Calibrated confidence score (0.0 to 1.0)
+    confidence_level: str        # 'HIGH', 'MEDIUM', 'LOW'
+    selected_action: str         # Associated LangGraph action
+    tool_name: str               # Associated sub-tool identifier
+    needs_clarification: bool    # True if ambiguous or underspecified
+    clarification_prompt: Optional[str]  # Clarifying question if needed
+    routing_reason: str          # Safe, non-private explanation
+    raw_intent: Optional[str]    # Raw output from underlying neural model
+    classifier_source: str       # 'safety_override' | 'semantic_llm' | 'concept_arbiter' | 'clarification'
 
-Respond with ONLY the category name. Nothing else."""
+
+INTENT_SPECS = {
+    "CRISIS": {
+        "action": "CRISIS_RESPONSE",
+        "tool": "crisis_support_protocol",
+        "desc": "Imminent self-harm, suicidal ideation, or life-threatening psychiatric emergencies.",
+    },
+    "URGENT_MEDICAL": {
+        "action": "USE_RAG_TOOL",
+        "tool": "urgent_medical_protocol",
+        "desc": "Acute physical health emergencies (severe chest pain, fainting, dyspnea, overdose, poisoning).",
+    },
+    "HEALTH_INFORMATION": {
+        "action": "USE_RAG_TOOL",
+        "tool": "gale_retriever",
+        "desc": "General physical health inquiries, diseases, illnesses, bodily symptoms (Gale Encyclopedia RAG).",
+    },
+    "GROUNDING_REQUEST": {
+        "action": "USE_GROUNDING_TOOL",
+        "tool": "interactive_grounding",
+        "desc": "Somatic grounding, breathing exercises (box breathing), 5-4-3-2-1 sensory exercises, panic relief.",
+    },
+    "COPING_REQUEST": {
+        "action": "USE_COPING_TOOL",
+        "tool": "coping_strategy",
+        "desc": "Actionable coping mechanisms, stress management, study burnout advice, sleep hygiene routines.",
+    },
+    "EMOTIONAL_SUPPORT": {
+        "action": "DIRECT_RESPONSE",
+        "tool": "direct_conversation",
+        "desc": "Sharing emotional vulnerability, sadness, loneliness, anxiety, feeling overwhelmed, seeking empathetic listening.",
+    },
+    "JOURNAL_REQUEST": {
+        "action": "USE_JOURNAL_TOOL",
+        "tool": "journal_recorder",
+        "desc": "Writing reflections, saving personal journal entries, or recording daily mood ratings (e.g. 6/10).",
+    },
+    "GOAL_REQUEST": {
+        "action": "USE_GOAL_TOOL",
+        "tool": "goal_tracker",
+        "desc": "Setting, updating, or tracking wellness habits, personal goals, and routines.",
+    },
+    "MEMORY_REQUEST": {
+        "action": "USE_MEMORY_TOOL",
+        "tool": "memory_vault",
+        "desc": "Remembering, recalling past user facts/moods, updating preferred names, or clearing memory.",
+    },
+    "VISION_REQUEST": {
+        "action": "USE_VISION_TOOL",
+        "tool": "vision_analyzer",
+        "desc": "Analyzing, describing, or perceiving uploaded images and visual attachments.",
+    },
+    "GENERAL_CONVERSATION": {
+        "action": "DIRECT_RESPONSE",
+        "tool": "direct_conversation",
+        "desc": "Greetings, friendly conversational check-ins, Mindly identity inquiries, general in-scope wellness chat.",
+    },
+    "OUT_OF_SCOPE": {
+        "action": "DIRECT_RESPONSE",
+        "tool": "scope_boundary_protocol",
+        "desc": "Inquiries outside mental wellness and health (programming, math, science, finance, non-medical trivia).",
+    },
+    "CLARIFICATION_NEEDED": {
+        "action": "DIRECT_RESPONSE",
+        "tool": "clarification_protocol",
+        "desc": "Ambiguous, vague, or underspecified inputs where the user's intent cannot be reliably determined.",
+    },
+}
+
+SEMANTIC_ANCHORS = {
+    "HEALTH_INFORMATION": [
+        "stomach", "stommach", "stomache", "herts", "pain", "ache", "aching", "hurt", "hurts", "hurting", "sore", "headache", "migraine",
+        "nausea", "vomit", "fever", "cramp", "cramping", "throat", "dizzy", "dizziness", "chest", "cough",
+        "fatigue", "tiredness", "rash", "skin", "joint", "shoulder", "back", "belly", "abdomen", "abdominal",
+        "dehydration", "dehydrated", "hypertension", "diabetes", "asthma", "infection", "illness", "disease",
+        "symptom", "symptoms", "causes", "cause", "etiology", "tummy", "noggin", "throbbing", "organ", "body",
+        "dairy", "eating", "digestion", "indigestion", "cluster headache", "cluster headaches"
+    ],
+    "GROUNDING_REQUEST": [
+        "breathe", "breathing", "breath", "inhale", "exhale", "box breathing", "square breathing", "4-4-4-4", "4-7-8",
+        "ground", "grounding", "5-4-3-2-1", "senses", "sensory", "calm down", "calming", "panic attack",
+        "panicking", "racing thoughts", "heart racing", "shaking", "hyperventilating", "chill out", "somatic",
+        "respiratory", "breath cycle", "lead me through", "guide me through"
+    ],
+    "COPING_REQUEST": [
+        "cope", "coping", "ways to handle", "how to manage", "manage stress", "stress management", "burnout",
+        "burnt out", "burned out", "burn out",
+        "sleep", "asleep", "falling asleep", "trouble sleeping", "trouble falling asleep", "trouble with sleep",
+        "study", "studying", "mental break", "study break", "break",
+        "study tips", "exam stress", "exam pressure", "workload", "recovery pause", "sleep routine",
+        "sleep hygiene", "insomnia", "practical ways", "strategy", "strategies", "routine", "habit", "actionable",
+        "steps to", "manageable steps", "practical strategies", "stress", "work piles up", "manage everyday stress",
+        "overworked", "overworking"
+    ],
+    "EMOTIONAL_SUPPORT": [
+        "feel", "feeling", "feels", "anxious", "anxiety", "sad", "sadness", "lonely", "loneliness", "depressed",
+        "overwhelmed", "overwhelm", "overthinking", "nervous", "scared", "fear", "angry", "anger", "frustrated",
+        "heartbroken", "breakup", "crying", "cry", "listen", "talk to someone", "need someone", "vent", "venting",
+        "down today", "heavy heart", "unmotivated", "lost", "hopeless", "bad day", "rough day", "tough day",
+        "terrible", "horrible", "awful", "worst", "terrible day", "horrible day", "awful day", "worst day",
+        "miserable", "struggling", "struggle", "drained", "exhausted", "exhasted", "exhaust", "exhaustion",
+        "burnt out", "burned out", "burn out", "burnout", "scrambled", "on my plate",
+        "hurting", "heartache", "painful",
+        "butterflies", "emotional weight", "blue today", "spiraling"
+    ],
+    "JOURNAL_REQUEST": [
+        "journal", "journaling", "log my mood", "log mood", "record mood", "record my mood", "today's mood",
+        "mood rating", "out of 10", "out of ten", "/10", "save entry", "diary", "write down my thoughts",
+        "reflect on today", "save a new journal entry", "my reflection"
+    ],
+    "GOAL_REQUEST": [
+        "goal", "goals", "habit", "habits", "track", "tracking", "set a goal", "create a goal", "daily walk",
+        "daily meditation", "routine target", "commit to", "streak", "target", "establish a", "morning meditation",
+        "drink two liters", "weekly study schedule", "plan", "planning", "schedule", "study schedule", "plan my week",
+        "exam preparation", "study goal", "study goals", "mark my goal", "mark goal"
+    ],
+    "MEMORY_REQUEST": [
+        "remember that", "remember my", "what is my name", "what did i tell you", "what did i say",
+        "my preferred name", "call me", "forget my", "clear all memories", "what was my mood earlier",
+        "stored memories", "what do you remember", "mood score i recorded", "preferred nickname",
+        "what was the mood score", "recorded earlier", "what did i record"
+    ],
+    "GENERAL_CONVERSATION": [
+        "hello", "hi", "hey", "good morning", "good evening", "how are you", "who are you", "what is your name",
+        "what can you do", "tell me a joke", "nice to meet you", "thank you", "thanks", "mindly", "purpose",
+        "interesting", "tell me something", "tell me a story", "tell me something interesting", "story", "joke",
+        "chat", "conversation", "talk", "what's up", "whats up", "howdy", "good afternoon", "good day"
+    ],
+    "OUT_OF_SCOPE": [
+        "python", "java", "javascript", "c++", "html", "css", "sql", "docker", "algorithm", "binary search",
+        "hashmap", "sort", "sorting", "quicksort", "code", "coding", "debug", "programming", "algebra",
+        "equation", "solve for x", "calculus", "integral", "derivative", "solar panel", "solar panels",
+        "photovoltaic", "astronomy", "black hole", "galaxy", "quantum", "physics", "stock", "stocks",
+        "bitcoin", "crypto", "trading", "stock price", "capital city", "capital of france", "capital of",
+        "who is the president", "election", "weather in", "car engine", "oil change", "spark plug",
+        "fifa", "world cup", "super bowl", "olympics"
+    ]
+}
+
+FUNCTION_WORDS = {
+    "what", "should", "could", "would", "have", "been", "from", "with",
+    "that", "this", "they", "them", "then", "there", "some", "thing",
+    "your", "help", "please", "about", "which", "whose", "where", "when"
+}
+
+def tokenize(text: str) -> List[str]:
+    return [w for w in re.findall(r"\b[a-z0-9\-]+\b", text.lower()) if len(w) > 1]
+
+def compute_concept_scores(text: str) -> Dict[str, float]:
+    tokens = set(tokenize(text))
+    lower = text.lower()
+    scores = {}
+    for intent, anchors in SEMANTIC_ANCHORS.items():
+        score = 0.0
+        for anchor in anchors:
+            if " " in anchor:
+                if anchor in lower:
+                    score += 2.5
+            else:
+                if anchor in tokens:
+                    score += 1.0
+                elif any(t.startswith(anchor[:5]) for t in tokens if len(anchor) >= 6 and len(t) >= 5 and t not in FUNCTION_WORDS):
+                    score += 0.5
+                elif any(t.startswith(anchor[:4]) for t in tokens if len(anchor) == 5 and len(t) >= 4 and t not in FUNCTION_WORDS):
+                    score += 0.5
+        scores[intent] = score
+    return scores
+
+
+INTENT_PROMPT = """Classify the user message into exactly ONE category from this list:
+- CRISIS: Imminent self-harm, suicide, life danger.
+- URGENT_MEDICAL: Acute emergencies (chest pain, fainting, difficulty breathing, poisoning, overdose).
+- HEALTH_INFORMATION: Physical symptoms, illness, body ache, headaches, stomach pain (Gale Medical RAG).
+- GROUNDING_REQUEST: Breathing exercises (box breathing), 5-4-3-2-1 sensory grounding, acute panic relief.
+- COPING_REQUEST: Actionable techniques for stress management, sleep hygiene, exam pressure, study burnout.
+- EMOTIONAL_SUPPORT: Venting, sadness, loneliness, heartbreak, feeling overwhelmed, wanting someone to listen.
+- JOURNAL_REQUEST: Writing reflections, logging daily mood scores (e.g. 6/10).
+- GOAL_REQUEST: Setting, building, or tracking personal goals and habits.
+- MEMORY_REQUEST: Recalling past shared information, updating preferred name, forgetting memories.
+- GENERAL_CONVERSATION: Greetings, conversational check-ins, Mindly identity, general wellness chat.
+- OUT_OF_SCOPE: Non-wellness topics: coding (Java/Python), math/algebra, solar panels, science, finance, trivia.
+- CLARIFICATION_NEEDED: Extremely vague, ambiguous, or incomplete input where intent is genuinely unclear.
+
+Respond with ONLY the exact category name. Nothing else."""
+
+
+def classify_intent_structured(user_text: str, llm=None, image_data=None) -> IntentClassificationResult:
+    """Perform robust semantic intent classification returning structured, validated output with calibrated confidence."""
+    clean = (user_text or "").strip()
+    lower_clean = clean.lower()
+
+    # Pre-screen 1: Image attachment
+    if image_data:
+        res: IntentClassificationResult = {
+            "intent": "VISION_REQUEST",
+            "confidence": 1.0,
+            "confidence_level": "HIGH",
+            "selected_action": "USE_VISION_TOOL",
+            "tool_name": "vision_analyzer",
+            "needs_clarification": False,
+            "clarification_prompt": None,
+            "routing_reason": "Visual image attachment provided; routed to multimodal vision analyzer.",
+            "raw_intent": "VISION_REQUEST",
+            "classifier_source": "deterministic",
+        }
+        logger.info("RoutingDecision | intent=%s | action=%s | conf=%.2f | source=%s", res["intent"], res["selected_action"], res["confidence"], res["classifier_source"])
+        return res
+
+    # Pre-screen 2: Empty input
+    if not clean:
+        res: IntentClassificationResult = {
+            "intent": "GENERAL_CONVERSATION",
+            "confidence": 1.0,
+            "confidence_level": "HIGH",
+            "selected_action": "DIRECT_RESPONSE",
+            "tool_name": "direct_conversation",
+            "needs_clarification": False,
+            "clarification_prompt": None,
+            "routing_reason": "Received empty or whitespace input.",
+            "raw_intent": "GENERAL_CONVERSATION",
+            "classifier_source": "deterministic",
+        }
+        logger.info("RoutingDecision | intent=%s | action=%s | conf=%.2f | source=%s", res["intent"], res["selected_action"], res["confidence"], res["classifier_source"])
+        return res
+
+    # Stage 1: Deterministic Safety Priority 1 - High Risk Crisis
+    safety = assess_safety(clean)
+    if safety["risk_level"] == "HIGH":
+        res: IntentClassificationResult = {
+            "intent": "CRISIS",
+            "confidence": 1.0,
+            "confidence_level": "HIGH",
+            "selected_action": "CRISIS_RESPONSE",
+            "tool_name": "crisis_support_protocol",
+            "needs_clarification": False,
+            "clarification_prompt": None,
+            "routing_reason": "Safety invariant: detected imminent crisis indicators; normal routing bypassed.",
+            "raw_intent": "CRISIS",
+            "classifier_source": "safety_override",
+        }
+        logger.info("RoutingDecision | intent=%s | action=%s | conf=%.2f | source=%s", res["intent"], res["selected_action"], res["confidence"], res["classifier_source"])
+        return res
+
+    # Stage 1 (Cont): Deterministic Safety Priority 2 - Acute Medical Red-Flags
+    urgent = screen_urgent_medical(clean)
+    if urgent["is_urgent"]:
+        res: IntentClassificationResult = {
+            "intent": "URGENT_MEDICAL",
+            "confidence": 1.0,
+            "confidence_level": "HIGH",
+            "selected_action": "USE_RAG_TOOL",
+            "tool_name": "urgent_medical_protocol",
+            "needs_clarification": False,
+            "clarification_prompt": None,
+            "routing_reason": "Safety invariant: detected acute somatic emergency red-flags.",
+            "raw_intent": "URGENT_MEDICAL",
+            "classifier_source": "safety_override",
+        }
+        logger.info("RoutingDecision | intent=%s | action=%s | conf=%.2f | source=%s", res["intent"], res["selected_action"], res["confidence"], res["classifier_source"])
+        return res
+
+    # Stage 1 (Cont): Educational or Third-Person Crisis inquiry (only when crisis/suicide terms present)
+    has_crisis_term = any(k in lower_clean for k in ["suicide", "kill", "die", "death", "end life", "self harm", "harming", "hurt myself"]) or bool(re.search(r"\bend\s+(?:their|his|her|a|my)\s+life\b", lower_clean))
+    if (safety["safety_status"] == "EDUCATIONAL_OR_THIRD_PERSON" or is_educational_or_third_person(clean)) and has_crisis_term:
+        res: IntentClassificationResult = {
+            "intent": "CRISIS",
+            "confidence": 1.0,
+            "confidence_level": "HIGH",
+            "selected_action": "DIRECT_RESPONSE",
+            "tool_name": "third_person_support_protocol",
+            "needs_clarification": False,
+            "clarification_prompt": None,
+            "routing_reason": "Identified educational crisis or third-person support inquiry.",
+            "raw_intent": "CRISIS",
+            "classifier_source": "safety_override",
+        }
+        logger.info("RoutingDecision | intent=%s | action=%s | conf=%.2f | source=%s", res["intent"], res["selected_action"], res["confidence"], res["classifier_source"])
+        return res
+
+    # Stage 1 (Cont): Explicit arithmetic / math computation
+    if evaluate_math_expression(clean) is not None:
+        res: IntentClassificationResult = {
+            "intent": "OUT_OF_SCOPE",
+            "confidence": 1.0,
+            "confidence_level": "HIGH",
+            "selected_action": "DIRECT_RESPONSE",
+            "tool_name": "scope_boundary_protocol",
+            "needs_clarification": False,
+            "clarification_prompt": None,
+            "routing_reason": "Arithmetic calculation query outside mental wellness scope.",
+            "raw_intent": "OUT_OF_SCOPE",
+            "classifier_source": "deterministic",
+        }
+        logger.info("RoutingDecision | intent=%s | action=%s | conf=%.2f | source=%s", res["intent"], res["selected_action"], res["confidence"], res["classifier_source"])
+        return res
+
+    # Explicit slash commands and memory directives
+    if lower_clean.startswith("/journal"):
+        res: IntentClassificationResult = {
+            "intent": "JOURNAL_REQUEST",
+            "confidence": 1.0,
+            "confidence_level": "HIGH",
+            "selected_action": "USE_JOURNAL_TOOL",
+            "tool_name": "journal_recorder",
+            "needs_clarification": False,
+            "clarification_prompt": None,
+            "routing_reason": "Explicit /journal slash command.",
+            "raw_intent": "JOURNAL_REQUEST",
+            "classifier_source": "deterministic",
+        }
+        return res
+    if lower_clean.startswith("/goal"):
+        res: IntentClassificationResult = {
+            "intent": "GOAL_REQUEST",
+            "confidence": 1.0,
+            "confidence_level": "HIGH",
+            "selected_action": "USE_GOAL_TOOL",
+            "tool_name": "goal_tracker",
+            "needs_clarification": False,
+            "clarification_prompt": None,
+            "routing_reason": "Explicit /goal slash command.",
+            "raw_intent": "GOAL_REQUEST",
+            "classifier_source": "deterministic",
+        }
+        return res
+    if bool(re.search(r"^(?:remember\s+(?:that|my)|please\s+remember|don't\s+forget|dont\s+forget|keep\s+in\s+mind\s+that)\b", lower_clean)):
+        spec = INTENT_SPECS["MEMORY_REQUEST"]
+        res: IntentClassificationResult = {
+            "intent": "MEMORY_REQUEST",
+            "confidence": 0.95,
+            "confidence_level": "HIGH",
+            "selected_action": spec["action"],
+            "tool_name": spec["tool"],
+            "needs_clarification": False,
+            "clarification_prompt": None,
+            "routing_reason": "Explicit persistent memory storage instruction.",
+            "raw_intent": "MEMORY_REQUEST",
+            "classifier_source": "deterministic",
+        }
+        logger.info("RoutingDecision | intent=%s | action=%s | conf=%.2f | source=%s", res["intent"], res["selected_action"], res["confidence"], res["classifier_source"])
+        return res
+
+    # Stage 2: Semantic Concept Scoring
+    concept_scores = compute_concept_scores(clean)
+    sorted_scores = sorted(concept_scores.items(), key=lambda x: x[1], reverse=True)
+    top_concept_intent, top_concept_score = sorted_scores[0]
+
+    # Stage 3: Semantic LLM Evaluation (Selectively invoked when concept scoring is low or ambiguous)
+    llm_intent = None
+    effective_llm = llm
+    should_query_llm = (llm is not None) or (top_concept_score < 2.0 and top_concept_score > 0.0) or (top_concept_score == 0.0 and len(tokenize(clean)) > 4)
+
+    if should_query_llm:
+        if effective_llm is None:
+            try:
+                from config.llm_provider import get_llm
+                effective_llm = get_llm(temperature=0.0, max_tokens=25)
+            except Exception:
+                effective_llm = None
+
+        if effective_llm is not None:
+            try:
+                messages = [
+                    SystemMessage(content=INTENT_PROMPT),
+                    HumanMessage(content=f'User: "{clean}"\nCategory:'),
+                ]
+                resp = effective_llm.invoke(messages)
+                raw = str(resp.content).strip().upper()
+                for cat in INTENT_SPECS.keys():
+                    if cat in raw:
+                        llm_intent = cat
+                        break
+            except Exception:
+                llm_intent = None
+
+    # Stage 4: Ambiguity & Vague Input Detection (Clarification Protocol)
+    is_vague_ref = bool(re.search(r"\b(?:that thing|this thing|with that|with this|about that|about it|help me with it|do that|do it)\b", lower_clean))
+    clean_vague = re.sub(r"[?!.,]", "", lower_clean).strip()
+    is_underspecified = clean_vague in [
+        "help", "help me", "help me please", "please help me", "can you help",
+        "can you help me", "i need help", "what should i do", "what to do",
+        "what can i do", "tell me what to do", "i need something to help me right now",
+        "tell me about that", "can you do it", "do it", "help please"
+    ]
+
+    if top_concept_score == 0.0 and (is_vague_ref or is_underspecified or llm_intent == "CLARIFICATION_NEEDED"):
+        res: IntentClassificationResult = {
+            "intent": "CLARIFICATION_NEEDED",
+            "confidence": 0.40,
+            "confidence_level": "LOW",
+            "selected_action": "DIRECT_RESPONSE",
+            "tool_name": "clarification_protocol",
+            "needs_clarification": True,
+            "clarification_prompt": "I want to make sure I support you in the best way possible. Could you clarify what you would like to focus on right now?",
+            "routing_reason": "Vague or underspecified input with zero domain concept overlap.",
+            "raw_intent": llm_intent or "CLARIFICATION_NEEDED",
+            "classifier_source": "clarification",
+        }
+        logger.info("RoutingDecision | intent=%s | action=%s | conf=%.2f | source=%s", res["intent"], res["selected_action"], res["confidence"], res["classifier_source"])
+        return res
+
+    # Stage 5: Domain Boundary Resolution (Out-of-Scope)
+    if top_concept_intent == "OUT_OF_SCOPE" or is_out_of_scope(clean) or (llm_intent == "OUT_OF_SCOPE" and is_out_of_scope(clean)):
+        wellness_sum = sum(concept_scores[k] for k in ["EMOTIONAL_SUPPORT", "HEALTH_INFORMATION", "GROUNDING_REQUEST", "COPING_REQUEST", "GENERAL_CONVERSATION"])
+        if wellness_sum == 0.0 and not is_physical_health_query(clean):
+            res: IntentClassificationResult = {
+                "intent": "OUT_OF_SCOPE",
+                "confidence": 0.95,
+                "confidence_level": "HIGH",
+                "selected_action": "DIRECT_RESPONSE",
+                "tool_name": "scope_boundary_protocol",
+                "needs_clarification": False,
+                "clarification_prompt": None,
+                "routing_reason": "Domain boundary guardrail: topic is outside mental wellness and health information.",
+                "raw_intent": llm_intent or "OUT_OF_SCOPE",
+                "classifier_source": "concept_arbiter",
+            }
+            logger.info("RoutingDecision | intent=%s | action=%s | conf=%.2f | source=%s", res["intent"], res["selected_action"], res["confidence"], res["classifier_source"])
+            return res
+
+    # Stage 6: Multi-Signal Decision Arbiter
+    # Determine resolved intent between Concept Profile and LLM prediction
+    if top_concept_score == 0.0:
+        resolved_intent = llm_intent if (llm_intent and llm_intent in INTENT_SPECS and llm_intent != "OUT_OF_SCOPE") else "GENERAL_CONVERSATION"
+        source = "semantic_llm" if (llm_intent and llm_intent in INTENT_SPECS and llm_intent != "OUT_OF_SCOPE") else "general_fallback"
+        calibrated_conf = 0.70
+    else:
+        resolved_intent = top_concept_intent
+        source = "concept_arbiter"
+        calibrated_conf = 0.85
+
+    if llm_intent and llm_intent in INTENT_SPECS:
+        if llm_intent == top_concept_intent:
+            resolved_intent = llm_intent
+            calibrated_conf = 0.95
+            source = "semantic_llm"
+        elif top_concept_score >= 2.5:
+            resolved_intent = top_concept_intent
+            calibrated_conf = 0.88
+            source = "concept_arbiter"
+        elif top_concept_score == 0.0 and llm_intent != "OUT_OF_SCOPE":
+            resolved_intent = llm_intent
+            calibrated_conf = 0.75
+            source = "semantic_llm"
+
+    # Enforce safety and domain invariants
+    if is_physical_health_query(clean):
+        resolved_intent = "HEALTH_INFORMATION"
+        calibrated_conf = 0.95
+
+    spec = INTENT_SPECS.get(resolved_intent, INTENT_SPECS["GENERAL_CONVERSATION"])
+    conf_level = "HIGH" if calibrated_conf >= 0.80 else "MEDIUM" if calibrated_conf >= 0.60 else "LOW"
+
+    res: IntentClassificationResult = {
+        "intent": resolved_intent,
+        "confidence": round(calibrated_conf, 2),
+        "confidence_level": conf_level,
+        "selected_action": spec["action"],
+        "tool_name": spec["tool"],
+        "needs_clarification": False,
+        "clarification_prompt": None,
+        "routing_reason": f"Semantic router matched {resolved_intent} via {source} (score={top_concept_score}).",
+        "raw_intent": llm_intent or resolved_intent,
+        "classifier_source": source,
+    }
+    logger.info("RoutingDecision | intent=%s | action=%s | conf=%.2f | source=%s", res["intent"], res["selected_action"], res["confidence"], res["classifier_source"])
+    return res
 
 
 def classify_intent(user_text: str, llm=None) -> str:
-    """Classify user intent by letting the AI dynamically decide, bounded by deterministic safety."""
-    clean = user_text.strip()
-    if not clean:
-        return "GENERAL_CONVERSATION"
-
-    # Stage 1: Deterministic safety guard check (HIGH risk CANNOT be overridden by LLM)
-    safety = assess_safety(user_text)
-    if safety["risk_level"] == "HIGH":
+    """Convenience classification wrapper returning canonical intent string with backwards-compatible aliases."""
+    result = classify_intent_structured(user_text, llm=llm)
+    intent = result["intent"]
+    lower = (user_text or "").lower()
+    # Map canonical intents to legacy compatibility aliases if needed
+    if intent == "CRISIS":
         return "CRISIS_RELATED"
-
-    # Stage 1 (Cont): Acute / Urgent Medical Symptoms Check
-    urgent = screen_urgent_medical(user_text)
-    if urgent["is_urgent"]:
+    if intent == "URGENT_MEDICAL":
         return "URGENT_HEALTH"
+    if intent in ["GOAL_REQUEST", "COPING_REQUEST"] and "plan" in lower and "goal" not in lower and "habit" not in lower:
+        return "PLANNING_REQUEST"
+    return intent
 
-    # Stage 1 (Cont): Educational or Third-Person Crisis discussion
-    if safety["safety_status"] == "EDUCATIONAL_OR_THIRD_PERSON":
-        return "CRISIS_RELATED"
-
-    lower_clean = clean.lower()
-
-    # Math expressions (2+3, 2+2, etc.) and non-wellness topics (coding, stocks, etc.) are strictly OUT_OF_SCOPE
-    if evaluate_math_expression(user_text) is not None or is_out_of_scope(user_text):
-        return "OUT_OF_SCOPE"
-
-    # Explicit slash commands (/journal, /goal)
-    if lower_clean.startswith("/journal"):
-        return "JOURNAL_REQUEST"
-    if lower_clean.startswith("/goal"):
-        return "GOAL_REQUEST"
-
-    # Conversational greetings, identity & chit-chat queries ("hello mindly", "thank you", "who are you")
-    if any(q in lower_clean for q in [
-        "what is your name", "what's your name", "who are you", "tell me about yourself",
-        "tell me something about yourself", "tell me a joke", "tell me something interesting",
-        "hello mindly", "hi mindly", "hey mindly", "thank you", "thanks", "nice to meet you",
-        "good morning", "good evening", "good afternoon"
-    ]) or lower_clean in ["hello", "hi", "hey", "how are you", "how are you doing", "how are you doing today?"]:
-        return "GENERAL_CONVERSATION"
-
-    # Educational definition questions ("what is anxiety?", "what is depression?")
-    if any(lower_clean.startswith(p) for p in [
-        "what is anxiety", "what is depression", "what is stress", "what is burnout", "what is panic",
-        "define anxiety", "define depression", "explain anxiety", "explain depression"
-    ]):
-        return "GENERAL_CONVERSATION"
-
-    # Stage 1 (Cont): Physical health symptoms must not be routed to mindfulness/emotional simply because of scared/fear words
-    if is_physical_health_query(user_text):
-        return "HEALTH_INFORMATION"
-
-    # Stage 2: LET THE AI DECIDE INTENT DYNAMICALLY
-    effective_llm = llm
-    if effective_llm is None:
-        try:
-            from config.llm_provider import get_llm
-            effective_llm = get_llm(temperature=0.0, max_tokens=20)
-        except Exception:
-            effective_llm = None
-
-    if effective_llm is not None:
-        try:
-            messages = [
-                SystemMessage(content=INTENT_PROMPT),
-                HumanMessage(content=f'Input: "{user_text}"\nCategory:'),
-            ]
-            response = effective_llm.invoke(messages)
-            raw_category = str(response.content).strip().upper()
-            for cat in INTENT_CATEGORIES:
-                if cat in raw_category:
-                    # Safety invariant: LLM can never downgrade high risk
-                    if cat != "CRISIS_RELATED" and safety["risk_level"] == "HIGH":
-                        return "CRISIS_RELATED"
-                    return cat
-        except Exception:
-            pass
-
-    # Stage 3: Fallback heuristic only if AI is unreachable
-    return classify_intent_heuristic(user_text)
 
 

@@ -28,32 +28,44 @@ def handle_journal_command(text: str, mood: str = "reflective") -> str:
             return f"Error: Unable to retrieve journal entries - {str(exc)}"
 
     # 2. Save new entry
-    # Strip trigger prefixes like "journal this:", "journal entry:", "save journal:"
+    # Detect mood rating (e.g. "record today's mood as 6 out of 10", "mood: 8/10", "6/10")
+    mood_rating_match = re.search(r"\b(?:mood\s+(?:as\s+|is\s+|:\s*)?)?(\d+(?:\.\d+)?\s*(?:out of|\/)\s*\d+|\d+\/10)\b", lower)
+    if mood_rating_match:
+        mood = mood_rating_match.group(1).strip()
+        tags = "mood-rating"
+        try:
+            db.save_memory("today_mood", mood, category="mood")
+            db.save_memory("mood", mood, category="mood")
+        except Exception:
+            pass
+
+    # Strip trigger prefixes like "journal this:", "journal entry:", "save journal:", "help me record today's mood as"
     content = re.sub(
-        r"^(?:please\s+)?(?:/journal|journal\s+this|save\s+to\s+journal|journal\s+entry|make\s+a\s+journal\s+entry|journal)\s*[:\-]?\s*",
+        r"^(?:please\s+)?(?:help\s+me\s+)?(?:/journal|journal\s+this|save\s+to\s+journal|journal\s+entry|make\s+a\s+journal\s+entry|record\s+today\'s\s+mood\s+as|record\s+my\s+mood\s+as|record\s+mood\s+as|log\s+my\s+mood\s+as|log\s+today\'s\s+mood\s+as|record\s+today\s+mood\s+as|journal)\s*[:\-]?\s*",
         "",
         clean,
         flags=re.IGNORECASE,
     ).strip()
     if not content:
-        content = clean
+        content = f"Today's mood rating: {mood}"
 
-    # Estimate mood tag if provided
-    tags = ""
-    lower_content = content.lower()
-    if "stress" in lower_content or "exam" in lower_content:
-        tags = "academic,stress"
-    elif "grateful" in lower_content or "happy" in lower_content:
-        tags = "gratitude"
-    elif "calm" in lower_content or "peace" in lower_content:
-        tags = "peaceful"
-    else:
-        tags = "reflection"
+    # Estimate mood tag if not already set by rating
+    if not tags:
+        tags = ""
+        lower_content = content.lower()
+        if "stress" in lower_content or "exam" in lower_content:
+            tags = "academic,stress"
+        elif "grateful" in lower_content or "happy" in lower_content:
+            tags = "gratitude"
+        elif "calm" in lower_content or "peace" in lower_content:
+            tags = "peaceful"
+        else:
+            tags = "reflection"
 
     try:
         entry_id = db.create_journal_entry(entry=content, mood=mood, tags=tags)
         return (
-            f"📖 **Journal Entry Saved**\n\n"
+            f"📖 **Journal Entry Saved** (Entry #{entry_id})\n\n"
             f"> \"{content}\"\n\n"
             f"*(Recorded securely in your local reflection journal with mood tag: `{mood}`). "
             f"You can review your past entries at any time in the Wellness Journal tab.)*"

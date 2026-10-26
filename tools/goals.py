@@ -54,7 +54,11 @@ def handle_goal_command(text: str) -> str:
         )
 
     # 3. Create goal - only if explicit goal-setting phrasing is present
-    is_explicit_goal = any(k in lower for k in ["/goal", "create a goal", "create goal", "set a goal", "set goal", "add a goal", "my goal is to"])
+    is_explicit_goal = (
+        any(k in lower for k in ["/goal", "create a goal", "create goal", "set a goal", "set goal", "add a goal", "my goal is to"])
+        or bool(re.search(r"\b(?:create|set|add|make)\s+(?:a\s+)?(?:\w+\s+)*goal\b", lower))
+        or "daily meditation goal" in lower
+    )
     if not is_explicit_goal:
         return (
             "🎯 **Goal Setting Assistant**:\n\n"
@@ -63,13 +67,15 @@ def handle_goal_command(text: str) -> str:
             "• *'Create a goal to study for 45 minutes'*."
         )
 
-    # Strip prefixes like "create goal:", "set a goal to", "i want to"
+    # Strip prefixes like "create goal:", "set a goal to", "help me create a daily meditation goal"
     title = re.sub(
-        r"^(?:please\s+)?(?:/goal|create\s+(?:a\s+)?goal\s+(?:to\s+)?|set\s+(?:a\s+)?goal\s+(?:to\s+)?|add\s+(?:a\s+)?goal\s+(?:to\s+)?|my\s+goal\s+is\s+to\s+)",
+        r"^(?:please\s+)?(?:help\s+me\s+)?(?:/goal|create\s+(?:a\s+)?(?:[\w\-]+\s+)?goal\s+(?:to|for)?|set\s+(?:a\s+)?(?:[\w\-]+\s+)?goal\s+(?:to|for)?|add\s+(?:a\s+)?goal\s+(?:to\s+)?|my\s+goal\s+is\s+to\s+|create\s+(?:a\s+)?|set\s+(?:a\s+)?)",
         "",
         text,
         flags=re.IGNORECASE,
     ).strip()
+    # Strip trailing "goal" or "goal." if left over
+    title = re.sub(r"\s+goal\.?$", "", title, flags=re.IGNORECASE).strip()
 
     if not title:
         title = text.strip()

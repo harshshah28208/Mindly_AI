@@ -35,6 +35,8 @@ def plan_action(
     previous_action: Optional[str] = None,
     evaluation_result: Optional[str] = None,
     retry_count: int = 0,
+    confidence: Optional[float] = None,
+    needs_clarification: Optional[bool] = None,
 ) -> Dict[str, str]:
     """Determine the optimal agentic action and tool for Mindly adhering strictly to priorities 0-9.
 
@@ -51,6 +53,8 @@ def plan_action(
         from agent.intent import classify_intent
         detected_intent = classify_intent(clean_input)
     lower = clean_input.lower()
+    safety = assess_safety(clean_input)
+    urgent_med = screen_urgent_medical(clean_input)
 
     # --------------------------------------------------------------------------
     # PRIORITY 0: SYSTEM / INVALID INPUT
@@ -65,7 +69,6 @@ def plan_action(
     # --------------------------------------------------------------------------
     # PRIORITY 1: HIGH-RISK SAFETY (Immediate override of all normal routing)
     # --------------------------------------------------------------------------
-    safety = assess_safety(clean_input)
     if risk_level == "HIGH" or safety["risk_level"] == "HIGH" or detected_intent == "CRISIS_RELATED":
         # Ensure educational or third-person is not accidentally caught as HIGH here
         if not (safety["safety_status"] == "EDUCATIONAL_OR_THIRD_PERSON" or is_educational_or_third_person(clean_input)):
@@ -79,7 +82,13 @@ def plan_action(
     # HANDLE REPLANNING / RETRY FROM EVALUATOR (Bounded to non-high-risk loops)
     # --------------------------------------------------------------------------
     if evaluation_result == "RETRY" and retry_count > 0:
-        if is_physical_health_query(clean_input) or health_priority in ["ROUTINE", "URGENT"]:
+        if urgent_med["is_urgent"] or health_priority == "URGENT" or detected_intent in ["URGENT_HEALTH", "URGENT_MEDICAL"]:
+            return {
+                "selected_action": "USE_RAG_TOOL",
+                "tool_name": "urgent_medical_protocol",
+                "reasoning_summary": "Priority 2 Urgent Medical: acute symptoms detected; delivering immediate clinical evaluation guidance.",
+            }
+        elif is_physical_health_query(clean_input) or health_priority in ["ROUTINE"]:
             return {
                 "selected_action": "USE_RAG_TOOL",
                 "tool_name": "gale_retriever",
@@ -113,7 +122,6 @@ def plan_action(
     # --------------------------------------------------------------------------
     # PRIORITY 2: URGENT MEDICAL / HEALTH
     # --------------------------------------------------------------------------
-    urgent_med = screen_urgent_medical(clean_input)
     if detected_intent == "URGENT_HEALTH" or health_priority == "URGENT" or urgent_med["is_urgent"]:
         return {
             "selected_action": "USE_RAG_TOOL",
@@ -129,6 +137,18 @@ def plan_action(
             "selected_action": "USE_VISION_TOOL",
             "tool_name": "vision_analyzer",
             "reasoning_summary": "Detected image input; routed to multimodal vision analyzer.",
+        }
+
+    # Multimodal image query without image attached
+    if any(q in lower for q in [
+        "what is in this picture", "what is in this image", "what's in this picture",
+        "describe this picture", "analyze this image", "what do you see in this picture",
+        "what is this picture", "what is this image"
+    ]) and not image_present and input_type != "image":
+        return {
+            "selected_action": "DIRECT_RESPONSE",
+            "tool_name": "missing_image_advisory",
+            "reasoning_summary": "User asked about an image or picture, but no image was attached.",
         }
 
     # --------------------------------------------------------------------------
@@ -156,6 +176,16 @@ def plan_action(
             "selected_action": "DIRECT_RESPONSE",
             "tool_name": "third_person_support_protocol",
             "reasoning_summary": "Priority 4 Non-immediate crisis context: identified educational inquiry or third-person support discussion; provided compassionate helpline resources without high-risk escalation.",
+        }
+
+    # --------------------------------------------------------------------------
+    # AMBIGUOUS / UNDERSPECIFIED INPUT (Clarification protocol instead of arbitrary tool dispatch)
+    # --------------------------------------------------------------------------
+    if detected_intent == "CLARIFICATION_NEEDED" or needs_clarification:
+        return {
+            "selected_action": "DIRECT_RESPONSE",
+            "tool_name": "clarification_protocol",
+            "reasoning_summary": "Intent ambiguous or underspecified; offering gentle clarifying options instead of arbitrary tool dispatch.",
         }
 
     # --------------------------------------------------------------------------

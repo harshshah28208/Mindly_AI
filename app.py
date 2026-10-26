@@ -22,6 +22,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+import importlib
+import agent.safety
+import agent.intent
+import agent.planner
+import graph
+importlib.reload(agent.safety)
+importlib.reload(agent.intent)
+importlib.reload(agent.planner)
+importlib.reload(graph)
+
 import streamlit as st
 
 from config.settings import settings

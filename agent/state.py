@@ -27,6 +27,12 @@ class AgentState(TypedDict, total=False):
     risk_level: str  # 'LOW', 'MEDIUM', 'HIGH'
     safety_status: str  # 'PASSED', 'HIGH_RISK_TRIGGERED', 'MEDIUM_RISK_DISTRESS', 'EDUCATIONAL_OR_THIRD_PERSON'
     health_priority: str  # 'URGENT', 'ROUTINE', 'NONE'
+    confidence: Optional[float]
+    confidence_level: Optional[str]  # 'HIGH', 'MEDIUM', 'LOW'
+    needs_clarification: Optional[bool]
+    clarification_prompt: Optional[str]
+    classifier_source: Optional[str]
+
 
     # Planning & tools
     selected_action: str  # 'DIRECT_RESPONSE', 'USE_GROUNDING_TOOL', 'USE_COPING_TOOL', 'USE_RAG_TOOL', etc.

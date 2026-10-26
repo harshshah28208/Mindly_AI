@@ -15,8 +15,8 @@ def handle_memory_command(text: str) -> str:
             "You can enable memory storage anytime in the Memory Vault tab or sidebar.*"
         )
 
-    # 1. Preferred name save (e.g. "Remember that my preferred name is Rahul", "call me Rahul")
-    name_match = re.search(r"(?:preferred\s+name\s+is|call\s+me|my\s+name\s+is)\s+([A-Z][a-zA-Z]+)", text, re.IGNORECASE)
+    # 1. Preferred name update or save (e.g. "Remember that my preferred name is Rahul", "call me Rahul", "update my preferred name to Alex")
+    name_match = re.search(r"(?:preferred\s+name\s+is|call\s+me|my\s+name\s+is|preferred\s+name\s+to|change\s+my\s+preferred\s+name\s+to|update\s+my\s+preferred\s+name\s+to)\s+([A-Z][a-zA-Z]+)", text, re.IGNORECASE)
     if name_match:
         name_val = name_match.group(1).capitalize()
         db.save_memory("preferred_name", name_val, category="identity")
@@ -29,7 +29,52 @@ def handle_memory_command(text: str) -> str:
             return f"You asked me to call you **{saved_name}**! I have that saved safely in my long-term memory."
         return "You haven't told me a preferred name yet. What would you like me to call you?"
 
-    # 3. View memories
+    # 3. Mood recall (e.g. "What did I tell you about my mood earlier?", "What was my mood earlier?")
+    if any(k in lower for k in [
+        "what did i tell you about my mood", "what was my mood earlier", "what did i say about my mood",
+        "my mood earlier", "did i tell you my mood"
+    ]):
+        try:
+            saved_mood = db.get_memory("today_mood") or db.get_memory("mood")
+            if not saved_mood:
+                entries = db.get_journal_entries(limit=5)
+                for e in entries:
+                    if e.get("mood") and e.get("mood") != "reflective":
+                        saved_mood = f"{e.get('mood')} (Recorded entry: \"{e.get('entry_text') or e.get('entry')}\")"
+                        break
+                    elif "mood" in (e.get("entry_text") or e.get("entry") or "").lower():
+                        saved_mood = e.get("entry_text") or e.get("entry")
+                        break
+            if saved_mood:
+                return f"Earlier, you recorded your mood as: **{saved_mood}**."
+            return (
+                "I checked your records, but you haven't mentioned or recorded your mood yet in this session or journal. "
+                "How are you feeling right now? If you'd like, we can record it together!"
+            )
+        except Exception:
+            return "You haven't recorded or mentioned your mood yet in our conversation. How are you feeling right now?"
+
+    # 4. Deletion and purge operations
+    if any(k in lower for k in ["clear my memories", "clear all memories", "clear all memory", "delete all memories", "clear memories", "reset memory", "delete my memory"]):
+        try:
+            db.clear_memories()
+            return "🗑️ All long-term memories have been successfully cleared from your local database."
+        except Exception as exc:
+            return f"Error: Unable to clear memories - {str(exc)}"
+
+    if any(k in lower for k in ["forget my preferred name", "delete my preferred name", "forget my name", "remove my preferred name"]):
+        try:
+            saved = db.get_memory("preferred_name")
+            if saved:
+                with db._get_connection() as conn:
+                    conn.execute("DELETE FROM memories WHERE key = 'preferred_name'")
+                    conn.commit()
+                return "🗑️ I have removed your preferred name from long-term memory."
+            return "I do not currently have a preferred name stored in memory."
+        except Exception as exc:
+            return f"Error: Unable to delete preferred name - {str(exc)}"
+
+    # 5. View memories
     if any(k in lower for k in ["view memory", "show my memory", "what do you remember about me"]):
         memories = db.get_memories()
         if not memories:
@@ -39,7 +84,7 @@ def handle_memory_command(text: str) -> str:
             lines.append(f"• **{m['key'].title()}**: {m['value']}")
         return "\n".join(lines)
 
-    # 4. Generic "Remember that <key> is <value>"
+    # 6. Generic "Remember that <key> is <value>"
     match_general = re.search(r"remember\s+(?:that\s+)?my\s+([a-zA-Z\s]+?)\s+is\s+([a-zA-Z0-9\s]+)", text, re.IGNORECASE)
     if match_general:
         k = match_general.group(1).strip()

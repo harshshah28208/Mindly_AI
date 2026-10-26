@@ -31,7 +31,7 @@ from langgraph.graph import END, START, StateGraph
 
 from agent.emotion import classify_emotion
 from agent.evaluator import evaluate_execution
-from agent.intent import classify_intent, is_physical_health_query
+from agent.intent import classify_intent, classify_intent_structured, is_physical_health_query
 from agent.planner import plan_action
 from agent.safety import (
     assess_safety,
@@ -147,11 +147,32 @@ create_crisis_escalation_node = create_crisis_node
 
 
 def create_intent_node(llm=None, use_simulation: bool = False):
-    """Create intent classification node with rapid, bounded token prediction."""
+    """Create intent classification node with semantic multi-signal routing."""
     _llm = None if use_simulation else (llm or get_llm(max_tokens=20))
     def intent_node(state: AgentState) -> Dict[str, Any]:
-        intent = classify_intent(state.get("user_input", ""), llm=_llm)
-        return {"detected_intent": intent}
+        user_text = state.get("user_input", "")
+        res = classify_intent_structured(
+            user_text,
+            llm=_llm,
+            image_data=state.get("image_data"),
+        )
+        intent_val = res["intent"]
+        lower = user_text.lower()
+        if intent_val == "URGENT_MEDICAL":
+            intent_val = "URGENT_HEALTH"
+        elif intent_val == "CRISIS":
+            intent_val = "CRISIS_RELATED"
+        elif intent_val in ["GOAL_REQUEST", "COPING_REQUEST"] and "plan" in lower and "goal" not in lower and "habit" not in lower:
+            intent_val = "PLANNING_REQUEST"
+
+        return {
+            "detected_intent": intent_val,
+            "confidence": res.get("confidence", 1.0),
+            "confidence_level": res.get("confidence_level", "HIGH"),
+            "needs_clarification": res.get("needs_clarification", False),
+            "clarification_prompt": res.get("clarification_prompt"),
+            "classifier_source": res.get("classifier_source", "heuristic"),
+        }
     return intent_node
 
 
@@ -179,6 +200,8 @@ def create_planner_node():
             previous_action=state.get("selected_action"),
             evaluation_result=state.get("evaluation_result"),
             retry_count=state.get("retry_count", 0),
+            confidence=state.get("confidence"),
+            needs_clarification=state.get("needs_clarification"),
         )
         return {
             "selected_action": decision["selected_action"],
@@ -248,7 +271,7 @@ def create_rag_node(llm=None, use_simulation: bool = False):
         user_text = state.get("user_input", "")
 
         # Priority 2: Potentially acute / urgent medical handling
-        if state.get("tool_name") == "urgent_medical_protocol" or state.get("health_priority") == "URGENT":
+        if state.get("tool_name") == "urgent_medical_protocol" or state.get("health_priority") == "URGENT" or state.get("detected_intent") in ["URGENT_HEALTH", "URGENT_MEDICAL"]:
             urgent_res = screen_urgent_medical(user_text)
             advisory = urgent_res.get("advisory") or (
                 "🚨 **Urgent Medical Assessment Recommended**:\n"
@@ -257,6 +280,7 @@ def create_rag_node(llm=None, use_simulation: bool = False):
                 "*(Mindly is an educational wellness companion and does not provide clinical triage or medical diagnosis.)*"
             )
             return {
+                "tool_name": "urgent_medical_protocol",
                 "tool_result": advisory,
                 "retrieved_context": advisory,
                 "retrieved_sources": [{"source": "Mindly Clinical Triage Guidance", "page": 1, "topic": "Urgent Medical Evaluation"}],
@@ -278,6 +302,7 @@ def create_rag_node(llm=None, use_simulation: bool = False):
                 llm=node_llm,
                 top_k=3,
                 detected_emotion=state.get("detected_emotion"),
+                use_simulation=use_simulation,
             )
             return {
                 "tool_result": answer,
@@ -364,6 +389,17 @@ def create_direct_response_node(llm=None, use_simulation: bool = False):
     def direct_response_node(state: AgentState) -> Dict[str, Any]:
         user_text = state.get("user_input", "")
 
+        # Priority 2: Potentially acute / urgent medical handling if routed here
+        if state.get("tool_name") == "urgent_medical_protocol" or state.get("selected_action") == "URGENT_MEDICAL" or state.get("health_priority") == "URGENT":
+            urgent_res = screen_urgent_medical(user_text)
+            advisory = urgent_res.get("advisory") or (
+                "🚨 **Urgent Medical Assessment Recommended**:\n"
+                "Severe, rapidly worsening, or acute physical symptoms require immediate professional clinical evaluation. "
+                "Please contact an emergency department, urgent care clinic, or call local emergency medical services right away.\n\n"
+                "*(Mindly is an educational wellness companion and does not provide clinical triage or medical diagnosis.)*"
+            )
+            return {"tool_result": advisory}
+
         # Priority 4: Educational or Third-Person crisis support protocol
         if state.get("tool_name") == "third_person_support_protocol" or state.get("safety_status") == "EDUCATIONAL_OR_THIRD_PERSON":
             output = generate_third_person_support_response(user_text)
@@ -373,6 +409,25 @@ def create_direct_response_node(llm=None, use_simulation: bool = False):
         if state.get("tool_name") == "scope_boundary_protocol" or state.get("detected_intent") == "OUT_OF_SCOPE":
             output = generate_direct_response(user_text, is_scope_notice=True)
             return {"tool_result": output}
+
+        # Ambiguous / clarification protocol
+        if state.get("tool_name") == "clarification_protocol" or state.get("detected_intent") == "CLARIFICATION_NEEDED":
+            output = generate_direct_response(user_text, is_clarification=True)
+            return {"tool_result": output}
+
+        # Missing image advisory
+        if state.get("tool_name") == "missing_image_advisory" or (
+            any(q in user_text.lower() for q in [
+                "what is in this picture", "what is in this image", "what's in this picture",
+                "describe this picture", "analyze this image", "what do you see in this picture"
+            ]) and not state.get("image_data")
+        ):
+            return {
+                "tool_result": (
+                    "📷 I don't see an image attached to your message. "
+                    "Please upload or attach an image using the attachment button so I can view and analyze it for you!"
+                )
+            }
 
         node_llm = _llm
         if not use_simulation and llm is None:
@@ -466,7 +521,7 @@ def route_action(state: AgentState) -> str:
         return "grounding_node"
     elif action == "USE_COPING_TOOL":
         return "coping_node"
-    elif action == "USE_RAG_TOOL":
+    elif action in ["USE_RAG_TOOL", "URGENT_MEDICAL"]:
         return "rag_node"
     elif action == "USE_VISION_TOOL":
         return "vision_node"
@@ -684,6 +739,10 @@ def send_message(
     return {
         "response": final_resp,
         "intent": result.get("detected_intent") or ("CRISIS_RELATED" if is_high_risk else "GENERAL_CONVERSATION"),
+        "confidence": result.get("confidence", 1.0),
+        "confidence_level": result.get("confidence_level", "HIGH"),
+        "needs_clarification": result.get("needs_clarification", False),
+        "classifier_source": result.get("classifier_source", "heuristic"),
         "emotion": result.get("detected_emotion") or ("overwhelmed" if is_high_risk else "neutral"),
         "risk_level": result.get("risk_level", "LOW"),
         "safety_status": result.get("safety_status", "PASSED"),

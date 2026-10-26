@@ -264,6 +264,7 @@ def execute_rag_query(
     llm=None,
     top_k: int = 2,
     detected_emotion: Optional[str] = None,
+    use_simulation: bool = False,
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """Execute Gale Encyclopedia of Medicine RAG pipeline.
 
@@ -305,7 +306,7 @@ def execute_rag_query(
 
     # 3. If LLM is available, invoke with grounded Gale knowledge
     effective_llm = llm
-    if effective_llm is None:
+    if effective_llm is None and not use_simulation:
         try:
             from config.llm_provider import get_llm
             from config.settings import settings
@@ -314,7 +315,7 @@ def execute_rag_query(
         except Exception:
             pass
 
-    if effective_llm is not None and chunks:
+    if effective_llm is not None and chunks and not use_simulation:
         try:
             context_parts = [f"[Excerpt from Page {c.get('page', 1)} - {c.get('document_name', 'Gale Encyclopedia')}]:\n{c.get('text', '')}" for c in chunks]
             context_str = "\n\n".join(context_parts)
