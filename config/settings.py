@@ -29,7 +29,6 @@ class Settings:
         self.llm_fallback_enabled: bool = os.getenv("LLM_FALLBACK_ENABLED", "true").strip().lower() in ("true", "1", "yes")
         self.openai_api_key: str = os.getenv("OPENAI_API_KEY", "").strip()
         self.openai_base_url: str = os.getenv("OPENAI_BASE_URL", "").strip()
-        self.openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
         self.groq_api_key: str = os.getenv("GROQ_API_KEY", "").strip()
 
         self.ollama_model: str = os.getenv("OLLAMA_MODEL", "llama3.2:1b").strip()

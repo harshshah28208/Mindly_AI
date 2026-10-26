@@ -174,30 +174,7 @@ When running locally with CPU inference (e.g. `llama3.2:1b` on laptops):
 
 ---
 
-## 7. Automated Testing & Verification
-
-Mindly includes comprehensive unit, regression, safety, and integration test suites:
-
-```bash
-# Run new Phase 1-6 comprehensive quality verification suite
-pytest tests/test_verified_agentic_quality.py -v
-
-# Run response length and truncation constraint tests
-pytest tests/test_response_length_constraints.py -v
-
-# Run medical dynamic RAG tests
-pytest tests/test_medical_dynamic_qa.py -v
-
-# Run 13 canonical query routing table verification
-python scripts/test_expected_routing_table.py
-
-# Run all test suites
-pytest -v
-```
-
----
-
-## 8. Clinical & Ethical Boundaries
+## 7. Clinical & Ethical Boundaries
 
 Mindly is designed with strict boundaries to ensure user safety:
 1. **Non-Diagnostic**: Never issues clinical diagnoses (e.g., *"You have appendicitis"* or *"You have major depression"*).

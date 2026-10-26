@@ -95,26 +95,7 @@ If you want to run open models on your local GPU/CPU:
 
 ---
 
-## 🧪 4. Running the Automated Test Suite
-
-Mindly features a comprehensive automated test suite with **304 unit and end-to-end tests** covering safety screening, routing, medical bounds, evaluator loops, and multimodal processing:
-
-```bash
-# Run all 304 tests
-pytest
-
-# Run tests with verbose output
-pytest -v
-
-# Run a specific test module
-pytest tests/test_routing.py
-pytest tests/test_intent.py
-pytest tests/test_student_ui_flows.py
-```
-
----
-
-## 🎯 5. Available Features in the UI
+## 🎯 4. Available Features in the UI
 
 1. **🏠 Home (Chat)**:
    - Dynamic conversational wellness companion.

@@ -199,6 +199,7 @@ with st.sidebar:
     if not raw_cloud_key:
         raw_cloud_key = os.environ.get("GROQ_API_KEY", "")
 
+
     cloud_key = str(raw_cloud_key or "").strip().strip("'\" \t\r\n")
     if cloud_key.lower().startswith("bearer "):
         cloud_key = cloud_key[7:].strip().strip("'\" \t\r\n")
