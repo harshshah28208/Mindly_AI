@@ -298,7 +298,10 @@ class UniversalChatModel:
             fallback_enabled = fallback_env.strip().lower() in ("true", "1", "yes")
 
         # Resolve cloud API key if present (env, session_state, or st.secrets)
-        cloud_api_key = os.getenv("OPENAI_API_KEY", "").strip() or os.getenv("GROQ_API_KEY", "").strip()
+        raw_key = (
+            os.getenv("GROQ_API_KEY", "").strip()
+            or os.getenv("OPENAI_API_KEY", "").strip()
+        )
         openai_url = os.getenv("OPENAI_BASE_URL", "").strip()
         try:
             import sys
@@ -308,17 +311,22 @@ class UniversalChatModel:
                     sess_provider = st.session_state.get("llm_provider")
                     if sess_provider and not self.provider:
                         provider_mode = str(sess_provider).strip().lower()
-                    if not cloud_api_key:
-                        cloud_api_key = str(st.session_state.get("cloud_api_key") or st.session_state.get("cloud_key_input_field") or "").strip()
+                    sess_key = st.session_state.get("cloud_api_key") or st.session_state.get("cloud_key_input_field")
+                    if sess_key and str(sess_key).strip():
+                        raw_key = str(sess_key).strip()
                     if "llm_fallback_enabled" in st.session_state:
                         fallback_enabled = bool(st.session_state.get("llm_fallback_enabled"))
-                if not cloud_api_key:
+                if not raw_key:
                     try:
-                        cloud_api_key = str(st.secrets.get("GROQ_API_KEY", "") or st.secrets.get("OPENAI_API_KEY", "")).strip()
+                        raw_key = str(st.secrets.get("GROQ_API_KEY", "") or st.secrets.get("OPENAI_API_KEY", "")).strip()
                     except Exception:
                         pass
         except Exception:
             pass
+
+        cloud_api_key = raw_key.strip().strip("'\" \t\r\n")
+        if cloud_api_key.lower().startswith("bearer "):
+            cloud_api_key = cloud_api_key[7:].strip().strip("'\" \t\r\n")
 
         # Helper: Attempt Local Ollama
         def _try_ollama():
@@ -335,7 +343,12 @@ class UniversalChatModel:
                         role = "system"
                     elif isinstance(m, AIMessage):
                         role = "assistant"
-                    payload_msgs.append({"role": role, "content": str(m.content)})
+                    content_str = str(m.content or "").strip()
+                    if content_str:
+                        payload_msgs.append({"role": role, "content": content_str})
+
+                if not payload_msgs:
+                    payload_msgs = [{"role": "user", "content": "Hello"}]
 
                 predict_tokens = self.max_tokens
                 # When running on local CPU, cap num_predict to fast limit (default 280 tokens = ~20-25 seconds)
@@ -390,10 +403,16 @@ class UniversalChatModel:
             try:
                 cloud_resp, model_used, finish_reason, is_truncated = self._invoke_openai_compatible(messages, cloud_api_key, openai_url)
                 if cloud_resp:
-                    provider_tag = "Groq" if ("groq" in (openai_url or "").lower() or cloud_api_key.startswith("gsk_")) else "OpenAI"
+                    is_groq_tag = (
+                        cloud_api_key.startswith("gsk_")
+                        or "groq" in (openai_url or "").lower()
+                        or provider_mode == "groq"
+                        or "llama" in model_used.lower()
+                    )
+                    provider_tag = "Groq" if is_groq_tag else "OpenAI"
                     return (cloud_resp, model_used, finish_reason, is_truncated, provider_tag), None, None
                 else:
-                    return None, "api_error", "Cloud LLM returned empty or non-200 response"
+                    return None, "api_error", f"Cloud LLM call failed ({finish_reason})"
             except requests.exceptions.Timeout:
                 return None, "timeout", "Cloud API request timed out"
             except Exception as exc:
@@ -590,13 +609,44 @@ class UniversalChatModel:
                 return AIMessage(content=diagnostic_text, response_metadata=UniversalChatModel.last_metadata)
 
     def _invoke_openai_compatible(self, messages: List[BaseMessage], api_key: str, base_url: str) -> Tuple[Optional[str], str, str, bool]:
-        target_url = (base_url or "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
-        is_groq = "groq" in target_url.lower() or api_key.startswith("gsk_")
+        clean_key = (api_key or "").strip().strip("'\" \t\r\n")
+        if clean_key.lower().startswith("bearer "):
+            clean_key = clean_key[7:].strip().strip("'\" \t\r\n")
+
+        if not clean_key:
+            return None, "none", "missing_key", False
+
+        provider_env = os.getenv("LLM_PROVIDER", "").strip().lower()
+        is_groq = (
+            clean_key.startswith("gsk_")
+            or "groq" in (base_url or "").lower()
+            or provider_env == "groq"
+            or bool(os.getenv("GROQ_API_KEY"))
+        )
+
         if is_groq:
             target_url = "https://api.groq.com/openai/v1/chat/completions"
-            model_name = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+            # Candidate models with automatic cascading across active Groq models
+            candidate_models = [
+                os.getenv("GROQ_MODEL", "").strip(),
+                "qwen/qwen3.8-27b",
+                "openai/gpt-oss-120b",
+                "openai/gpt-oss-20b",
+                "llama-3.3-70b-versatile",
+                "llama-3.1-8b-instant",
+            ]
+            seen = set()
+            models_to_try = []
+            for m in candidate_models:
+                if m and m not in seen:
+                    models_to_try.append(m)
+                    seen.add(m)
+            # Give Groq a generous token budget so dynamic answers complete naturally without artificial cutoffs
+            token_budget = max(self.max_tokens or 768, 1024)
         else:
-            model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+            target_url = (base_url or "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
+            models_to_try = [os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()]
+            token_budget = self.max_tokens or 512
 
         payload_msgs = []
         for m in messages:
@@ -605,33 +655,59 @@ class UniversalChatModel:
                 role = "system"
             elif isinstance(m, AIMessage):
                 role = "assistant"
-            payload_msgs.append({"role": role, "content": str(m.content)})
+            content_str = str(m.content or "").strip()
+            if not content_str:
+                continue
+            payload_msgs.append({"role": role, "content": content_str})
+
+        if not payload_msgs:
+            payload_msgs = [{"role": "user", "content": "Hello"}]
 
         headers = {
-            "Authorization": f"Bearer {api_key}",
+            "Authorization": f"Bearer {clean_key}",
             "Content-Type": "application/json",
         }
-        body = {
-            "model": model_name,
-            "messages": payload_msgs,
-            "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
-        }
 
-        try:
-            res = requests.post(target_url, json=body, headers=headers, timeout=20.0)
-            if res.status_code == 200:
-                data = res.json()
-                choice = data["choices"][0]
-                resp_content = choice["message"]["content"]
-                finish_reason = choice.get("finish_reason", "stop")
-                is_truncated = (finish_reason == "length")
-                return resp_content, model_name, finish_reason, is_truncated
-            else:
-                print(f"[Cloud LLM HTTP {res.status_code}]: {res.text[:200]}")
-        except Exception as exc:
-            print(f"[Cloud LLM Request Error]: {exc}")
-        return None, model_name, "error", False
+        last_err = ""
+        for model_name in models_to_try:
+            body = {
+                "model": model_name,
+                "messages": payload_msgs,
+                "temperature": self.temperature,
+                "max_tokens": token_budget,
+            }
+
+            try:
+                res = requests.post(target_url, json=body, headers=headers, timeout=20.0)
+                if res.status_code == 200:
+                    data = res.json()
+                    choice = data["choices"][0]
+                    resp_content = choice["message"]["content"]
+                    finish_reason = choice.get("finish_reason", "stop")
+                    # Check whether generation was cut off mid-thought
+                    is_length = (finish_reason == "length")
+                    is_dangling = False
+                    if resp_content:
+                        t = resp_content.strip()
+                        is_dangling = bool(
+                            re.search(r"[,:;\-\(\[\{]\s*$", t)
+                            or re.search(r"\b(?:and|or|the|with|to|in|of|that|because|step|such\s+as)\s*$", t, re.IGNORECASE)
+                        )
+                    is_truncated = is_length and (is_dangling or not resp_content.strip().endswith((".", "!", "?", "\"", "'", "*", "`", "#")))
+                    return resp_content, model_name, finish_reason, is_truncated
+                elif res.status_code in (404, 429, 400, 503) and len(models_to_try) > 1 and model_name != models_to_try[-1]:
+                    # Primary model missing/rate-limited/overloaded: immediately try fast fallback model
+                    last_err = f"HTTP {res.status_code}: {res.text[:120]}"
+                    continue
+                else:
+                    last_err = f"HTTP {res.status_code}: {res.text[:120]}"
+                    print(f"[Cloud LLM HTTP {res.status_code} ({model_name})]: {res.text[:200]}")
+            except Exception as exc:
+                last_err = str(exc)
+                print(f"[Cloud LLM Request Error ({model_name})]: {exc}")
+                continue
+
+        return None, (models_to_try[0] if models_to_try else "cloud"), f"error: {last_err}", False
 
 
 def get_universal_llm(

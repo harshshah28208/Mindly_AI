@@ -410,16 +410,12 @@ def create_direct_response_node(llm=None, use_simulation: bool = False):
             output = generate_direct_response(user_text, is_scope_notice=True)
             return {"tool_result": output}
 
-        # Ambiguous / clarification protocol
-        if state.get("tool_name") == "clarification_protocol" or state.get("detected_intent") == "CLARIFICATION_NEEDED":
-            output = generate_direct_response(user_text, is_clarification=True)
-            return {"tool_result": output}
-
-        # Missing image advisory
+        # Missing image advisory (Must precede clarification check)
         if state.get("tool_name") == "missing_image_advisory" or (
             any(q in user_text.lower() for q in [
                 "what is in this picture", "what is in this image", "what's in this picture",
-                "describe this picture", "analyze this image", "what do you see in this picture"
+                "describe this picture", "analyze this image", "what do you see in this picture",
+                "what is this picture", "what is this image"
             ]) and not state.get("image_data")
         ):
             return {
@@ -428,6 +424,11 @@ def create_direct_response_node(llm=None, use_simulation: bool = False):
                     "Please upload or attach an image using the attachment button so I can view and analyze it for you!"
                 )
             }
+
+        # Ambiguous / clarification protocol
+        if state.get("tool_name") == "clarification_protocol" or state.get("detected_intent") == "CLARIFICATION_NEEDED":
+            output = generate_direct_response(user_text, is_clarification=True)
+            return {"tool_result": output}
 
         node_llm = _llm
         if not use_simulation and llm is None:
@@ -456,7 +457,9 @@ def create_evaluator_node():
     def evaluator_node(state: AgentState) -> Dict[str, Any]:
         current_retries = state.get("retry_count", 0)
         from config.llm_provider import UniversalChatModel
-        is_trunc = bool(state.get("is_truncated", False) or UniversalChatModel.last_metadata.get("truncated", False))
+        is_trunc = False
+        if state.get("selected_action") in ["DIRECT_RESPONSE", "USE_COPING_TOOL", "USE_GROUNDING_TOOL", "USE_RAG_TOOL"]:
+            is_trunc = bool(state.get("is_truncated", False) or UniversalChatModel.last_metadata.get("truncated", False))
         eval_dict = evaluate_execution(
             user_input=state.get("user_input", ""),
             selected_action=state.get("selected_action", "DIRECT_RESPONSE"),
@@ -705,7 +708,12 @@ def send_message(
         "image_data": image_data,
         "messages": [HumanMessage(content=clean_text or "[Image Uploaded]")],
         "retry_count": 0,
+        "is_truncated": False,
     }
+
+    # Reset last_metadata to guarantee clean turn isolation without residual truncation flags
+    from config.llm_provider import UniversalChatModel
+    UniversalChatModel.last_metadata = {"truncated": False, "finish_reason": "stop"}
 
     try:
         result = active_graph.invoke(input_state, config=config)

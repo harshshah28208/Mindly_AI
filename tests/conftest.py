@@ -38,11 +38,11 @@ def clean_test_user():
 @pytest.fixture
 def sample_base64_image() -> str:
     """Minimal valid 1x1 transparent PNG encoded in base64."""
-    # 1x1 PNG bytes
+    # 1x1 PNG bytes (valid red pixel)
     png_bytes = (
         b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
-        b"\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x00\x00\x02"
-        b"\x00\x01H\xaf\xa4q\x00\x00\x00\x00IEND\xaeB`\x82"
+        b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0\x00"
+        b"\x00\x03\x01\x01\x00\xc9\xfe\x92\xef\x00\x00\x00\x00IEND\xaeB`\x82"
     )
     return base64.b64encode(png_bytes).decode("ascii")
 

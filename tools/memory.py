@@ -22,12 +22,15 @@ def handle_memory_command(text: str) -> str:
         db.save_memory("preferred_name", name_val, category="identity")
         return f"💾 I have remembered that your preferred name is **{name_val}**. I will address you warmly by this name!"
 
-    # 2. Preferred name query (e.g. "What name should you call me?", "What should you call me?")
-    if any(k in lower for k in ["what name should you call me", "what should you call me", "what is my preferred name"]):
+    # 2. Preferred name query (e.g. "What is my name?", "What name should you call me?", "What should you call me?")
+    if any(k in lower for k in [
+        "what name should you call me", "what should you call me", "what is my preferred name",
+        "what is my name", "what's my name", "who am i", "do you know my name"
+    ]):
         saved_name = db.get_memory("preferred_name")
         if saved_name:
-            return f"You asked me to call you **{saved_name}**! I have that saved safely in my long-term memory."
-        return "You haven't told me a preferred name yet. What would you like me to call you?"
+            return f"Your name is **{saved_name}**! You shared that with me earlier in our reflection."
+        return "You haven't told me your name yet. What would you like me to call you?"
 
     # 3. Mood recall (e.g. "What did I tell you about my mood earlier?", "What was my mood earlier?")
     if any(k in lower for k in [

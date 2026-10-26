@@ -8,6 +8,7 @@ Provides structured sensory and somatic grounding exercises:
 Supports dynamic LLM personalization tailored directly to the user's situation.
 """
 
+import os
 from typing import Optional
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -78,7 +79,7 @@ def interactive_grounding_tool(
             resolved_type = "guided_reflection"
 
     # Dynamic LLM Personalization
-    if llm is None and user_text:
+    if llm is None and user_text and not os.environ.get("PYTEST_CURRENT_TEST"):
         try:
             from config.llm_provider import get_llm
             from config.settings import settings

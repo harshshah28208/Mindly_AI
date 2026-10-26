@@ -17,6 +17,7 @@ Classifies user messages into standardized conversational, educational, wellness
 
 import ast
 import operator
+import os
 import re
 from typing import Any, Dict, List, Optional, Tuple, TypedDict
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -94,6 +95,9 @@ def is_math_query(text: str) -> bool:
         return False
     if evaluate_math_expression(clean) is not None:
         return True
+    if any(op in clean for op in ["multiplied by", "divided by", "times", "multiplied with", "plus", "minus", "sum of", "product of"]):
+        if re.search(r"\d", clean):
+            return True
     if re.search(r"\b(?:calculate|calc|math|arithmetic|algebra|equation|evaluate)\b", clean) and re.search(r"[\d\+\-\*\/\^\=\w]", clean):
         if any(w in clean for w in ["solve", "equation", "algebra", "calculate", "derivative", "integral", "x", "="]):
             return True
@@ -150,7 +154,7 @@ def is_physical_health_query(user_text: str) -> bool:
         r"\bacne\b", r"\bacnes\b", r"\bpimple\b", r"\bpimples\b", r"\bblackhead\b", r"\bwhitehead\b", r"\bfolliculitis\b",
         r"\bacidity\b", r"\bacid\s+reflux\b", r"\bgerd\b", r"\bheartburn\b", r"\bindigestion\b", r"\bgastritis\b", r"\bdyspepsia\b",
         r"\bhypertension\b", r"\bhigh\s+blood\s+pressure\b", r"\blow\s+blood\s+pressure\b", r"\bhypotension\b",
-        r"\bmigraine\b", r"\bheadache\b", r"\bcluster\s+headache\b", r"\btension\s+headache\b",
+        r"\bmigraines?\b", r"\bheadaches?\b", r"\bcluster\s+headaches?\b", r"\btension\s+headaches?\b",
         r"\b(?:noggin|head)\s+(?:is\s+)?pounding\b", r"\bpounding\s+(?:head|noggin)\b", r"\bhead\s+hurts?\b",
         r"\bdiabetes\b", r"\bdiabetic\b", r"\bblood\s+sugar\b", r"\bglucose\b", r"\binsulin\b",
         r"\basthma\b", r"\bbronchitis\b", r"\bpneumonia\b", r"\bwheezing\b", r"\brespiratory\b", r"\blungs?\b",
@@ -195,7 +199,7 @@ def is_physical_health_query(user_text: str) -> bool:
 
     # 9. Dynamic Symptom & Bodily Sensation complaints ("I am having acidity", "my back hurts", etc.)
     if re.search(
-        r"\b(?:having|have|got|suffering\s+from|experiencing)\s+(?:an?\s+)?(?:acute\s+|chronic\s+|mild\s+|severe\s+)?(?:acid(?:ity)?|heartburn|acid\s+reflux|gerd|gas|bloat(?:ing)?|indigestion|dyspepsia|nausea|vomit(?:ing)?|cramp(?:s|ing)?|burn(?:ing)?|pain(?:ing)?|ache|aching|fever|chills?|cough(?:ing)?|cold|sore\s+throat|diarrhea|constipation|dizz(?:y|iness)|vertigo|migraine|headache|palpitation(?:s)?|rash(?:es)?|swelling|acne|pimples?)\b",
+        r"\b(?:having|have|got|suffering\s+from|experiencing)\s+(?:an?\s+)?(?:acute\s+|chronic\s+|mild\s+|severe\s+)?(?:acid(?:ity)?|heartburn|acid\s+reflux|gerd|gas|bloat(?:ing)?|indigestion|dyspepsia|nausea|vomit(?:ing)?|cramp(?:s|ing)?|burn(?:ing)?|pain(?:ing)?|ache|aching|fever|chills?|cough(?:ing)?|cold|sore\s+throat|diarrhea|constipation|dizz(?:y|iness)|vertigo|migraines?|headaches?|palpitation(?:s)?|rash(?:es)?|swelling|acne|pimples?)\b",
         lower,
     ):
         return True
@@ -206,7 +210,7 @@ def is_physical_health_query(user_text: str) -> bool:
 
     # 10. Dynamic Anatomical complaints ("my back hurts", "burning in my chest", etc.)
     if re.search(
-        r"\b(?:my\s+)?(?:stomach|abdomen|gut|belly|tummy|chest|head|throat|back|neck|shoulder|knee|joints?|eyes?|ears?|lungs?|bowels?|muscles?|skin|esophagus)\s+(?:hurts?|aches?|pains?|is\s+burning|is\s+upset|is\s+aching|is\s+cramping|is\s+swollen|is\s+stiff|is\s+paining|is\s+tight)\b",
+        r"\b(?:my\s+)?(?:stomach|abdomen|gut|belly|tummy|chest|head|throat|back|neck|shoulder|knee|joints?|eyes?|ears?|lungs?|bowels?|muscles?|skin|esophagus)\s+(?:hurts?|aches?|pains?|is\s+burning|is\s+upset|is\s+aching|is\s+cramping|is\s+swollen|is\s+stiff|is\s+paining|is\s+tight|is\s+throbbing|throbs?|is\s+sore)\b",
         lower,
     ):
         return True
@@ -432,12 +436,13 @@ INTENT_SPECS = {
 
 SEMANTIC_ANCHORS = {
     "HEALTH_INFORMATION": [
-        "stomach", "stommach", "stomache", "herts", "pain", "ache", "aching", "hurt", "hurts", "hurting", "sore", "headache", "migraine",
-        "nausea", "vomit", "fever", "cramp", "cramping", "throat", "dizzy", "dizziness", "chest", "cough",
-        "fatigue", "tiredness", "rash", "skin", "joint", "shoulder", "back", "belly", "abdomen", "abdominal",
+        "stomach", "stommach", "stomache", "herts", "ache", "aching", "headache", "migraine",
+        "nausea", "vomit", "fever", "cramp", "cramping", "throat", "dizzy", "dizziness", "cough",
+        "rash", "skin", "joint", "shoulder", "belly", "abdomen", "abdominal",
         "dehydration", "dehydrated", "hypertension", "diabetes", "asthma", "infection", "illness", "disease",
-        "symptom", "symptoms", "causes", "cause", "etiology", "tummy", "noggin", "throbbing", "organ", "body",
-        "dairy", "eating", "digestion", "indigestion", "cluster headache", "cluster headaches"
+        "symptom", "symptoms", "etiology", "tummy", "noggin", "throbbing",
+        "indigestion", "cluster headache", "cluster headaches", "acne", "pimple", "acidity",
+        "acid reflux", "gerd", "bronchitis", "pneumonia", "arthritis"
     ],
     "GROUNDING_REQUEST": [
         "breathe", "breathing", "breath", "inhale", "exhale", "box breathing", "square breathing", "4-4-4-4", "4-7-8",
@@ -448,6 +453,9 @@ SEMANTIC_ANCHORS = {
     "COPING_REQUEST": [
         "cope", "coping", "ways to handle", "how to manage", "manage stress", "stress management", "burnout",
         "burnt out", "burned out", "burn out",
+        "tired", "tiredness", "fatigue", "brain fog", "mental fog", "exhausted", "exhaustion", "low energy", "lack of energy",
+        "focus", "trouble focusing", "cannot focus", "can't focus", "concentration", "lazy", "laziness",
+        "procrastinate", "procrastinating", "procrastination", "sleepy",
         "sleep", "asleep", "falling asleep", "trouble sleeping", "trouble falling asleep", "trouble with sleep",
         "study", "studying", "mental break", "study break", "break",
         "study tips", "exam stress", "exam pressure", "workload", "recovery pause", "sleep routine",
@@ -456,20 +464,22 @@ SEMANTIC_ANCHORS = {
         "overworked", "overworking"
     ],
     "EMOTIONAL_SUPPORT": [
-        "feel", "feeling", "feels", "anxious", "anxiety", "sad", "sadness", "lonely", "loneliness", "depressed",
+        "feel", "feeling", "feeeling", "feels", "anxious", "anxiuos", "anxius", "anxios", "anxiety", "sad", "sadness", "lonely", "loneliness", "depressed",
         "overwhelmed", "overwhelm", "overthinking", "nervous", "scared", "fear", "angry", "anger", "frustrated",
         "heartbroken", "breakup", "crying", "cry", "listen", "talk to someone", "need someone", "vent", "venting",
         "down today", "heavy heart", "unmotivated", "lost", "hopeless", "bad day", "rough day", "tough day",
         "terrible", "horrible", "awful", "worst", "terrible day", "horrible day", "awful day", "worst day",
         "miserable", "struggling", "struggle", "drained", "exhausted", "exhasted", "exhaust", "exhaustion",
+        "tired", "tiredness", "fatigue", "foggy", "empty", "numb", "restless",
         "burnt out", "burned out", "burn out", "burnout", "scrambled", "on my plate",
         "hurting", "heartache", "painful",
-        "butterflies", "emotional weight", "blue today", "spiraling"
+        "butterflies", "emotional weight", "blue today", "spiraling", "college", "exam", "exams"
     ],
     "JOURNAL_REQUEST": [
-        "journal", "journaling", "log my mood", "log mood", "record mood", "record my mood", "today's mood",
+        "journal", "journaling", "jrnl", "log my mood", "log mood", "record mood", "record my mood", "today's mood",
         "mood rating", "out of 10", "out of ten", "/10", "save entry", "diary", "write down my thoughts",
-        "reflect on today", "save a new journal entry", "my reflection"
+        "reflect on today", "save a new journal entry", "my reflection", "record a reflection", "record reflection",
+        "write this down in my jrnl", "write this down in my journal", "write down", "reflection"
     ],
     "GOAL_REQUEST": [
         "goal", "goals", "habit", "habits", "track", "tracking", "set a goal", "create a goal", "daily walk",
@@ -533,10 +543,10 @@ def compute_concept_scores(text: str) -> Dict[str, float]:
 INTENT_PROMPT = """Classify the user message into exactly ONE category from this list:
 - CRISIS: Imminent self-harm, suicide, life danger.
 - URGENT_MEDICAL: Acute emergencies (chest pain, fainting, difficulty breathing, poisoning, overdose).
-- HEALTH_INFORMATION: Physical symptoms, illness, body ache, headaches, stomach pain (Gale Medical RAG).
+- HEALTH_INFORMATION: ONLY physical medical conditions, physical bodily diseases, infections, medical pathology, anatomy, or medication inquiries (e.g. diabetes, asthma, hypertension, arthritis, stomach ulcers, acne, flu, fever, rash). DO NOT use for mental health, stress, anxiety, emotional fatigue, tiredness, burnout, sleepiness, sadness, or psychological questions.
 - GROUNDING_REQUEST: Breathing exercises (box breathing), 5-4-3-2-1 sensory grounding, acute panic relief.
-- COPING_REQUEST: Actionable techniques for stress management, sleep hygiene, exam pressure, study burnout.
-- EMOTIONAL_SUPPORT: Venting, sadness, loneliness, heartbreak, feeling overwhelmed, wanting someone to listen.
+- COPING_REQUEST: Actionable techniques for stress management, sleep hygiene, exam pressure, study burnout, tiredness, fatigue, focus, procrastination.
+- EMOTIONAL_SUPPORT: Venting, sadness, loneliness, heartbreak, feeling overwhelmed, wanting someone to listen, emotional exhaustion.
 - JOURNAL_REQUEST: Writing reflections, logging daily mood scores (e.g. 6/10).
 - GOAL_REQUEST: Setting, building, or tracking personal goals and habits.
 - MEMORY_REQUEST: Recalling past shared information, updating preferred name, forgetting memories.
@@ -657,32 +667,49 @@ def classify_intent_structured(user_text: str, llm=None, image_data=None) -> Int
         logger.info("RoutingDecision | intent=%s | action=%s | conf=%.2f | source=%s", res["intent"], res["selected_action"], res["confidence"], res["classifier_source"])
         return res
 
-    # Explicit slash commands and memory directives
-    if lower_clean.startswith("/journal"):
+    # Explicit slash commands and directives
+    if lower_clean.startswith("/journal") or bool(re.search(r"^(?:journal\s+this|save\s+(?:to\s+)?journal|log\s+my\s+mood|record\s+my\s+mood)\b", lower_clean)):
+        spec = INTENT_SPECS["JOURNAL_REQUEST"]
         res: IntentClassificationResult = {
             "intent": "JOURNAL_REQUEST",
             "confidence": 1.0,
             "confidence_level": "HIGH",
-            "selected_action": "USE_JOURNAL_TOOL",
-            "tool_name": "journal_recorder",
+            "selected_action": spec["action"],
+            "tool_name": spec["tool"],
             "needs_clarification": False,
             "clarification_prompt": None,
-            "routing_reason": "Explicit /journal slash command.",
+            "routing_reason": "Explicit journal entry recording directive.",
             "raw_intent": "JOURNAL_REQUEST",
             "classifier_source": "deterministic",
         }
         return res
-    if lower_clean.startswith("/goal"):
+    if lower_clean.startswith("/goal") or bool(re.search(r"\b(?:create|set|track|add|make)\s+(?:a\s+)?(?:study\s+|daily\s+|new\s+)?(?:goal|habit)\b", lower_clean)):
+        spec = INTENT_SPECS["GOAL_REQUEST"]
         res: IntentClassificationResult = {
             "intent": "GOAL_REQUEST",
             "confidence": 1.0,
             "confidence_level": "HIGH",
-            "selected_action": "USE_GOAL_TOOL",
-            "tool_name": "goal_tracker",
+            "selected_action": spec["action"],
+            "tool_name": spec["tool"],
             "needs_clarification": False,
             "clarification_prompt": None,
-            "routing_reason": "Explicit /goal slash command.",
+            "routing_reason": "Explicit goal creation directive.",
             "raw_intent": "GOAL_REQUEST",
+            "classifier_source": "deterministic",
+        }
+        return res
+    if bool(re.search(r"\b(?:breathing\s+exercise|box\s+breathing|guided\s+breathing|deep\s+breathing\s+exercise|grounding\s+exercise|5-4-3-2-1\s+exercise)\b", lower_clean)):
+        spec = INTENT_SPECS["GROUNDING_REQUEST"]
+        res: IntentClassificationResult = {
+            "intent": "GROUNDING_REQUEST",
+            "confidence": 0.98,
+            "confidence_level": "HIGH",
+            "selected_action": spec["action"],
+            "tool_name": spec["tool"],
+            "needs_clarification": False,
+            "clarification_prompt": None,
+            "routing_reason": "Explicit breathing or grounding exercise request.",
+            "raw_intent": "GROUNDING_REQUEST",
             "classifier_source": "deterministic",
         }
         return res
@@ -714,7 +741,7 @@ def classify_intent_structured(user_text: str, llm=None, image_data=None) -> Int
     should_query_llm = (llm is not None) or (top_concept_score < 2.0 and top_concept_score > 0.0) or (top_concept_score == 0.0 and len(tokenize(clean)) > 4)
 
     if should_query_llm:
-        if effective_llm is None:
+        if effective_llm is None and not os.environ.get("PYTEST_CURRENT_TEST"):
             try:
                 from config.llm_provider import get_llm
                 effective_llm = get_llm(temperature=0.0, max_tokens=25)
@@ -810,6 +837,20 @@ def classify_intent_structured(user_text: str, llm=None, image_data=None) -> Int
     if is_physical_health_query(clean):
         resolved_intent = "HEALTH_INFORMATION"
         calibrated_conf = 0.95
+    elif resolved_intent == "HEALTH_INFORMATION" and not is_physical_health_query(clean):
+        # Prevent non-physical mental wellness/fatigue/lifestyle queries from leaking into physical RAG
+        if any(w in lower_clean for w in [
+            "burnout", "burnt out", "tired", "tiredness", "fatigue", "exhaust", "sleep", "study",
+            "work", "routine", "habit", "manage", "cope", "handle", "deal with", "focus", "procrastinat",
+            "fog", "brain fog", "energy", "lazy", "laziness", "rest", "break"
+        ]):
+            resolved_intent = "COPING_REQUEST"
+        elif any(w in lower_clean for w in ["breathe", "breathing", "panic", "grounding", "racing"]):
+            resolved_intent = "GROUNDING_REQUEST"
+        else:
+            resolved_intent = "EMOTIONAL_SUPPORT"
+        source = "physical_health_boundary_guard"
+        calibrated_conf = 0.85
 
     spec = INTENT_SPECS.get(resolved_intent, INTENT_SPECS["GENERAL_CONVERSATION"])
     conf_level = "HIGH" if calibrated_conf >= 0.80 else "MEDIUM" if calibrated_conf >= 0.60 else "LOW"

@@ -18,7 +18,7 @@ UNDERSTAND -> ANALYZE -> DECIDE -> PLAN -> SELECT TOOL -> EXECUTE -> EVALUATE
 
 import re
 from typing import Any, Dict, Optional
-from agent.intent import is_physical_health_query, is_out_of_scope
+from agent.intent import is_physical_health_query, is_out_of_scope, is_math_query
 from agent.safety import assess_safety, is_educational_or_third_person, screen_urgent_medical
 
 
@@ -152,18 +152,47 @@ def plan_action(
         }
 
     # --------------------------------------------------------------------------
+    # EXPLICIT CLINICAL DIAGNOSIS OR PRESCRIPTION INQUIRIES
+    # --------------------------------------------------------------------------
+    if bool(re.search(r"\b(?:can\s+you\s+diagnose|diagnose\s+me|diagnose\s+whether|give\s+me\s+a\s+diagnosis|exact\s+medication\s+and\s+dosage|prescribe\s+(?:me\s+)?medication)\b", lower)):
+        return {
+            "selected_action": "DIRECT_RESPONSE",
+            "tool_name": "direct_conversation",
+            "reasoning_summary": "Identified clinical diagnosis or prescription inquiry; routed to direct response to provide non-diagnostic boundary guidance.",
+        }
+
     # --------------------------------------------------------------------------
     # PRIORITY 3: GENERAL HEALTH INFORMATION (Gale RAG)
     # --------------------------------------------------------------------------
     if detected_intent in ["HEALTH_INFORMATION", "INFORMATION_REQUEST"]:
-        reason = "Priority 3 General Health: identified health knowledge inquiry; routed to Gale Encyclopedia of Medicine retriever."
-        if any(w in lower for w in ["scared", "stress", "stressed", "anxious", "nervous"]) or detected_emotion in ["anxious", "stressed", "fear", "sad", "overwhelmed"]:
-            reason = "Priority 3 General Health: identified physical symptom with emotional context; routed to Gale Encyclopedia of Medicine retriever with supportive framing."
-        return {
-            "selected_action": "USE_RAG_TOOL",
-            "tool_name": "gale_retriever",
-            "reasoning_summary": reason,
-        }
+        # Strictly verify it is a physical health condition or explicitly queries Gale/medical literature
+        if is_physical_health_query(clean_input) or any(w in lower for w in [
+            "gale", "medical encyclopedia", "encyclopedia of medicine", "medical literature", "clinical literature"
+        ]):
+            reason = "Priority 3 General Health: identified physical health knowledge inquiry; routed to Gale Encyclopedia of Medicine retriever."
+            if any(w in lower for w in ["scared", "stress", "stressed", "anxious", "nervous"]) or detected_emotion in ["anxious", "stressed", "fear", "sad", "overwhelmed"]:
+                reason = "Priority 3 General Health: identified physical symptom with emotional context; routed to Gale Encyclopedia of Medicine retriever with supportive framing."
+            return {
+                "selected_action": "USE_RAG_TOOL",
+                "tool_name": "gale_retriever",
+                "reasoning_summary": reason,
+            }
+        else:
+            # Query was categorized as health information but is non-physical wellness, fatigue, or stress
+            if any(w in lower for w in [
+                "cope", "manage", "handle", "burnout", "tired", "tiredness", "fatigue", "sleep",
+                "study", "work", "routine", "habit", "focus", "procrastinat", "fog", "brain fog", "energy"
+            ]):
+                return {
+                    "selected_action": "USE_COPING_TOOL",
+                    "tool_name": "coping_strategy",
+                    "reasoning_summary": "Identified wellness / lifestyle / fatigue coping inquiry; routed to actionable coping tool.",
+                }
+            return {
+                "selected_action": "DIRECT_RESPONSE",
+                "tool_name": "direct_conversation",
+                "reasoning_summary": "Identified emotional, psychological, or general wellness inquiry; routed to direct response without RAG.",
+            }
 
     # --------------------------------------------------------------------------
     # PRIORITY 4: CRISIS-RELATED BUT NON-IMMEDIATE (Educational / Third-Person)
@@ -191,7 +220,7 @@ def plan_action(
     # --------------------------------------------------------------------------
     # DOMAIN BOUNDARY GUARDRAIL: OUT-OF-SCOPE / NON-MEDICAL / MATH
     # --------------------------------------------------------------------------
-    if detected_intent == "OUT_OF_SCOPE":
+    if detected_intent == "OUT_OF_SCOPE" or is_math_query(clean_input) or is_out_of_scope(clean_input):
         return {
             "selected_action": "DIRECT_RESPONSE",
             "tool_name": "scope_boundary_protocol",
@@ -293,9 +322,11 @@ def plan_action(
             "reasoning_summary": "Priority 8 Coping: identified request for actionable coping methods; selected adaptive coping tool.",
         }
 
-    if detected_intent == "EMOTIONAL_SUPPORT":
+    if detected_intent in ["EMOTIONAL_SUPPORT", "GENERAL_CONVERSATION"]:
         # Context 1: Academic, college, exam or viva stress -> Coping tool
-        if any(w in lower for w in ["college", "workload", "study", "deadline", "pressure", "viva", "vivas", "exam", "exams", "interview", "presentation", "test", "assignment"]):
+        if any(w in lower for w in ["college", "workload", "study", "deadline", "pressure", "viva", "vivas", "exam", "exams", "interview", "presentation", "test", "assignment"]) and (
+            detected_intent == "EMOTIONAL_SUPPORT" or any(w in lower for w in ["overwhelm", "overwhelmed", "stress", "stressed", "anxious", "pressure", "exhausted", "too much"])
+        ):
             return {
                 "selected_action": "USE_COPING_TOOL",
                 "tool_name": "coping_strategy",

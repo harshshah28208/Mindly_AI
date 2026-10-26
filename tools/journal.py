@@ -28,6 +28,7 @@ def handle_journal_command(text: str, mood: str = "reflective") -> str:
             return f"Error: Unable to retrieve journal entries - {str(exc)}"
 
     # 2. Save new entry
+    tags = ""
     # Detect mood rating (e.g. "record today's mood as 6 out of 10", "mood: 8/10", "6/10")
     mood_rating_match = re.search(r"\b(?:mood\s+(?:as\s+|is\s+|:\s*)?)?(\d+(?:\.\d+)?\s*(?:out of|\/)\s*\d+|\d+\/10)\b", lower)
     if mood_rating_match:

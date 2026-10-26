@@ -106,8 +106,8 @@ def extract_condition_topic(query: str) -> str:
 
 
 def is_canned_refusal_or_insufficient(content: str) -> bool:
-    """Detect whether LLM output is a short canned refusal or lacks essential clinical sections."""
-    if not content or len(content.strip()) < 80:
+    """Detect whether LLM output is a short canned refusal or truncated cutoff."""
+    if not content or len(content.strip()) < 40:
         return True
 
     lower = content.lower().strip()
@@ -124,14 +124,6 @@ def is_canned_refusal_or_insufficient(content: str) -> bool:
 
     # Detect abrupt dangling cutoffs (e.g. truncated mid-word or mid-sentence)
     if re.search(r"[,:;\-\(\[\{]\s*$", content) or re.search(r"\b(?:and|or|the|with|to|in|of|that|because|step|e\.g\.|e)\s*$", content, re.IGNORECASE):
-        return True
-
-    # Must contain essential clinical sections: overview, reason, and immediate action plan
-    has_overview = "clinical overview" in lower or "what is happening" in lower
-    has_reason = "what is the reason" in lower or "underlying" in lower or "etiology" in lower
-    has_action = "immediate action" in lower or "action plan" in lower or "how to cure" in lower
-
-    if not (has_overview and has_reason and has_action):
         return True
 
     return False

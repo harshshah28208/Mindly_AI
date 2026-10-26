@@ -140,9 +140,36 @@ def reset_session():
     st.session_state.thread_id = str(uuid.uuid4())
     st.session_state.messages = []
     st.session_state.pending_prompt = None
+    st.session_state.pending_image = None
     st.session_state.uploaded_image = None
+    st.session_state.uploader_idx = st.session_state.get("uploader_idx", 0) + 1
     get_mindly_graph(reload=True, use_simulation=False)
     get_mindly_graph(reload=True, use_simulation=True)
+
+
+def save_key_to_dotenv(key_name: str, key_val: str):
+    """Persist API keys to .env so they survive app restarts and external scripts."""
+    try:
+        env_path = PROJECT_ROOT / ".env"
+        lines = []
+        found = False
+        if env_path.exists():
+            with open(env_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        new_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith(f"{key_name}=") or stripped.startswith(f"# {key_name}=") or stripped.startswith(f"#{key_name}="):
+                new_lines.append(f"{key_name}={key_val}\n")
+                found = True
+            else:
+                new_lines.append(line)
+        if not found:
+            new_lines.append(f"\n{key_name}={key_val}\n")
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
+    except Exception as exc:
+        print(f"[Warning] Could not persist {key_name} to .env: {exc}")
 
 
 # ------------------------------------------------------------------------------
@@ -152,21 +179,38 @@ with st.sidebar:
     st.markdown("### 🌿 Mindly Agentic AI")
     st.caption("Clinical & Wellness Multi-Agent System")
 
+    from dotenv import load_dotenv
+    load_dotenv(PROJECT_ROOT / ".env", override=True)
     health = settings.check_ollama_health()
-    cloud_key = st.session_state.get("cloud_api_key", os.getenv("GROQ_API_KEY", "") or os.getenv("OPENAI_API_KEY", ""))
-    if not cloud_key:
+
+    raw_cloud_key = os.getenv("GROQ_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
+    if not raw_cloud_key and (PROJECT_ROOT / ".env").exists():
         try:
-            cloud_key = st.secrets.get("GROQ_API_KEY", "") or st.secrets.get("OPENAI_API_KEY", "")
+            with open(PROJECT_ROOT / ".env", "r", encoding="utf-8") as f:
+                for line in f:
+                    s = line.strip()
+                    if s.startswith("GROQ_API_KEY="):
+                        raw_cloud_key = s.split("=", 1)[1].strip().strip("'\"")
+                        os.environ["GROQ_API_KEY"] = raw_cloud_key
+                        break
         except Exception:
-            cloud_key = ""
-    has_api = bool(cloud_key and str(cloud_key).strip())
+            pass
+
+    if not raw_cloud_key:
+        raw_cloud_key = os.environ.get("GROQ_API_KEY", "")
+
+    cloud_key = str(raw_cloud_key or "").strip().strip("'\" \t\r\n")
+    if cloud_key.lower().startswith("bearer "):
+        cloud_key = cloud_key[7:].strip().strip("'\" \t\r\n")
+    st.session_state["cloud_api_key"] = cloud_key
+    has_api = bool(cloud_key)
 
     # Provider mode selector & Fallback toggle
     current_provider_mode = st.session_state.get(
         "llm_provider_choice",
-        os.getenv("LLM_PROVIDER", getattr(settings, "llm_provider", "auto")).lower()
+        os.getenv("LLM_PROVIDER", getattr(settings, "llm_provider", "groq")).lower()
     )
-    provider_options = ["auto", "ollama", "groq", "openai"]
+    provider_options = ["groq", "auto", "ollama", "openai"]
     default_idx = provider_options.index(current_provider_mode) if current_provider_mode in provider_options else 0
 
     selected_provider = st.selectbox(
@@ -174,9 +218,9 @@ with st.sidebar:
         options=provider_options,
         index=default_idx,
         format_func=lambda x: {
+            "groq": "Cloud Groq (Qwen 3.8 & GPT-OSS 120B — Ultra Fast <1s)",
             "auto": "Auto (Best Available)",
             "ollama": f"Local Ollama ({settings.ollama_model})",
-            "groq": "Cloud Groq (Llama 3.3 70B)",
             "openai": "Cloud OpenAI (GPT-4o-mini)",
         }.get(x, x),
         help="Select explicit LLM provider or allow auto-orchestration."
@@ -205,61 +249,54 @@ with st.sidebar:
             st.warning(f"⚠️ Ollama Selected but offline/missing ({settings.ollama_model})")
     elif selected_provider in ["groq", "openai"]:
         if has_api:
-            st.success(f"🟢 Explicit Cloud Active ({selected_provider.upper()})")
+            st.success(f"🟢 Cloud Groq Active (LPU Ultra-Fast <1s)")
         else:
             st.warning(f"⚠️ Cloud Selected but missing API Key")
     else:
         if has_api:
-            st.success(f"🟢 Auto Mode: Cloud LLM Active")
+            cloud_brand = "Groq LPU" if (cloud_key.startswith("gsk_") or "groq" in current_provider_mode) else "Cloud LLM"
+            st.success(f"🟢 Auto Mode: {cloud_brand} Active (<1s inference)")
         elif health["is_running"] and health["model_installed"]:
             st.success(f"🟢 Auto Mode: Local Ollama Active ({settings.ollama_model})")
         else:
             st.info("🔵 Auto Mode: Dynamic Local Engine")
 
-    with st.expander("🔑 Cloud LLM Key (Groq / OpenAI)", expanded=not (health["is_running"] or has_api)):
-        st.markdown(
-            "For instant dynamic reasoning on Streamlit Cloud, enter a free API key:\n\n"
-            "👉 [Get Free Groq Key (30s)](https://console.groq.com/keys)"
-        )
-        user_key_input = st.text_input(
-            "API Key (Groq or OpenAI):",
-            value=cloud_key,
-            type="password",
-            help="Get a 100% free key from https://console.groq.com",
-            key="cloud_key_input_field",
-        )
-        if user_key_input:
-            clean_key = user_key_input.strip()
-            if clean_key != str(cloud_key).strip():
-                st.session_state["cloud_api_key"] = clean_key
-                if clean_key.startswith("gsk_"):
-                    os.environ["GROQ_API_KEY"] = clean_key
-                else:
-                    os.environ["OPENAI_API_KEY"] = clean_key
-                st.rerun()
-
-        if cloud_key:
-            if st.button("⚡ Test Cloud Key Connection", use_container_width=True):
-                with st.spinner("Testing cloud LLM connection..."):
-                    try:
-                        import time
-                        is_gsk = str(cloud_key).startswith("gsk_")
-                        endpoint = "https://api.groq.com/openai/v1/chat/completions" if is_gsk else "https://api.openai.com/v1/chat/completions"
-                        test_model = "llama-3.3-70b-versatile" if is_gsk else "gpt-4o-mini"
+    if has_api:
+        if st.sidebar.button("⚡ Test Groq Cloud Engine", use_container_width=True):
+            with st.spinner("Pinging Groq Cloud Engine..."):
+                try:
+                    import time
+                    clean_test_key = str(cloud_key).strip()
+                    endpoint = "https://api.groq.com/openai/v1/chat/completions"
+                    test_models = [os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b"), "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+                    success = False
+                    dt = 0.0
+                    connected_model = ""
+                    last_err = ""
+                    for tm in test_models:
                         t0 = time.time()
-                        test_res = requests.post(
-                            endpoint,
-                            headers={"Authorization": f"Bearer {cloud_key}", "Content-Type": "application/json"},
-                            json={"model": test_model, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 5},
-                            timeout=10.0,
-                        )
-                        dt = round(time.time() - t0, 2)
-                        if test_res.status_code == 200:
-                            st.success(f"✅ Connected to {('Groq LPU' if is_gsk else 'OpenAI')} in {dt}s!")
-                        else:
-                            st.error(f"❌ API Error ({test_res.status_code}): {test_res.text[:120]}")
-                    except Exception as err:
-                        st.error(f"❌ Connection failed: {err}")
+                        try:
+                            test_res = requests.post(
+                                endpoint,
+                                headers={"Authorization": f"Bearer {clean_test_key}", "Content-Type": "application/json"},
+                                json={"model": tm, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 10},
+                                timeout=10.0,
+                            )
+                            dt = round(time.time() - t0, 2)
+                            if test_res.status_code == 200:
+                                success = True
+                                connected_model = tm
+                                break
+                            else:
+                                last_err = f"HTTP {test_res.status_code}: {test_res.text[:120]}"
+                        except Exception as e:
+                            last_err = str(e)
+                    if success:
+                        st.sidebar.success(f"✅ Groq Engine Online ({connected_model}) in {dt}s!")
+                    else:
+                        st.sidebar.error(f"❌ Connection failed: {last_err}")
+                except Exception as err:
+                    st.sidebar.error(f"❌ Connection error: {err}")
 
     if health["is_running"]:
         if st.sidebar.button("🌿 Test Local Ollama", use_container_width=True):
@@ -480,22 +517,49 @@ with tab_chat:
                 audio_bytes = selected_audio.getvalue()
                 if audio_bytes and len(audio_bytes) > 0:
                     st.audio(audio_bytes)
-                    with st.spinner("Transcribing audio message..."):
-                        transcript = transcribe_audio_file(audio_bytes)
-                        if transcript:
-                            st.info(f"Transcribed: *\"{transcript}\"*")
-                            if st.button("Send Audio Transcript to Agent", key="btn_send_voice_transcript", use_container_width=True):
-                                st.session_state.pending_prompt = transcript
-                                st.rerun()
-                        else:
-                            st.warning("Could not detect clear speech. Please ensure microphone audio or type your query.")
+                    audio_sig = f"{len(audio_bytes)}_{hash(audio_bytes)}"
+                    if st.session_state.get("cached_audio_sig") != audio_sig:
+                        with st.spinner("Transcribing audio message..."):
+                            st.session_state.cached_transcript = transcribe_audio_file(audio_bytes)
+                            st.session_state.cached_audio_sig = audio_sig
+
+                    transcript = st.session_state.get("cached_transcript", "")
+                    if transcript:
+                        st.info(f"🎙️ **Transcribed Audio**: *\"{transcript}\"*")
+                        if st.button("🚀 Send Voice Message to Mindly", key="btn_send_voice_transcript", use_container_width=True):
+                            st.session_state.pending_prompt = transcript
+                            st.rerun()
+                    else:
+                        st.warning("⚠️ Could not detect clear speech in recording. Please ensure your microphone is working or type your query.")
 
         with c_v2:
             st.markdown("**📷 Medical Image Inspection**")
-            img_upload = st.file_uploader("Upload symptom or clinical image (.jpg, .png):", type=["jpg", "jpeg", "png"], key="img_uploader")
+            uploader_key = f"img_uploader_{st.session_state.get('uploader_idx', 0)}"
+            img_upload = st.file_uploader(
+                "Upload symptom or clinical image (.jpg, .png):",
+                type=["jpg", "jpeg", "png"],
+                key=uploader_key,
+            )
             if img_upload is not None:
-                st.session_state.uploaded_image = img_upload.read()
-                st.image(st.session_state.uploaded_image, caption="Uploaded Image for Vision Analyzer", width=220)
+                img_bytes = img_upload.getvalue()
+                if img_bytes and len(img_bytes) > 0:
+                    st.image(img_bytes, caption="Uploaded Image for Clinical Inspection", width=220)
+                    vision_query = st.text_input(
+                        "Clinical question about this image (optional):",
+                        placeholder="e.g. What is this skin rash or condition?",
+                        key=f"vision_query_{st.session_state.get('uploader_idx', 0)}",
+                    )
+                    c_anlz, c_clr_img = st.columns([2, 1])
+                    with c_anlz:
+                        if st.button("🔍 Analyze Image", key="btn_send_vision_img", use_container_width=True):
+                            st.session_state.pending_image = img_bytes
+                            st.session_state.pending_prompt = vision_query.strip() or "Please inspect this symptom image and provide an educational clinical assessment."
+                            st.rerun()
+                    with c_clr_img:
+                        if st.button("🗑️ Clear", key="btn_clear_vision_img", use_container_width=True):
+                            st.session_state.uploader_idx = st.session_state.get("uploader_idx", 0) + 1
+                            st.session_state.pending_image = None
+                            st.rerun()
 
     st.markdown("---")
 
@@ -558,15 +622,22 @@ with tab_chat:
     user_input = st.chat_input("💬 Ask a health question, share symptoms, or test agent routing...")
 
     active_query = None
-    if st.session_state.pending_prompt:
+    if st.session_state.get("pending_prompt"):
         active_query = st.session_state.pending_prompt
         st.session_state.pending_prompt = None
     elif user_input:
         active_query = user_input.strip()
 
-    if active_query or st.session_state.uploaded_image:
+    active_image = None
+    if st.session_state.get("pending_image"):
+        active_image = st.session_state.pending_image
+        st.session_state.pending_image = None
+
+    if active_query or active_image:
         user_text = active_query or ""
-        img_data = st.session_state.uploaded_image
+        img_data = active_image
+
+        # Clear legacy uploaded_image state if present
         st.session_state.uploaded_image = None
 
         # Display user message
@@ -578,7 +649,8 @@ with tab_chat:
         with st.chat_message("user"):
             if img_data:
                 st.image(img_data, width=260)
-            st.markdown(user_text)
+            if user_text:
+                st.markdown(user_text)
 
         # Run through Agentic LangGraph StateGraph
         with st.chat_message("assistant"):

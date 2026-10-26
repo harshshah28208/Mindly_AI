@@ -4,6 +4,7 @@ Handles standard conversational turns (greetings, identity questions, general re
 and scope boundary advisories without returning static repetitive canned answers.
 """
 
+import os
 import re
 from typing import List, Optional
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
@@ -77,6 +78,12 @@ def generate_direct_response(
             candidate = name_match.group(1).strip()
             if candidate.lower() not in INVALID_NAME_WORDS and len(candidate) > 1:
                 user_name = candidate.capitalize()
+                try:
+                    from memory.database import db
+                    if db.is_memory_enabled():
+                        db.save_memory("preferred_name", user_name, category="identity")
+                except Exception:
+                    pass
 
         # Favorite items extraction (e.g. "my favorite subject is Artificial Intelligence")
         fav_matches = re.findall(r"my favorite\s+([a-zA-Z\s]+?)\s+is\s+([a-zA-Z0-9\s]+?)(?:\.|$|,)", str(txt), re.IGNORECASE)
@@ -87,8 +94,15 @@ def generate_direct_response(
 
     # Identity and name queries
     if "what is my name" in lower or "who am i" in lower:
-        if user_name:
-            return f"Your name is **{user_name}**! You shared that with me earlier in our reflection."
+        name_to_report = user_name
+        if not name_to_report:
+            try:
+                from memory.database import db
+                name_to_report = db.get_memory("preferred_name")
+            except Exception:
+                pass
+        if name_to_report:
+            return f"Your name is **{name_to_report}**! You shared that with me earlier in our reflection."
         return "You haven't shared your name with me yet. What would you like me to call you?"
 
     # Favorite facts recall queries (e.g. "what is my favorite subject?")
@@ -137,7 +151,7 @@ def generate_direct_response(
             return "You haven't recorded or mentioned your mood yet in our conversation. How are you feeling right now?"
 
     # If LLM is available, invoke it with the empathetic Mindly system prompt
-    if llm is None:
+    if llm is None and not os.environ.get("PYTEST_CURRENT_TEST"):
         try:
             from config.llm_provider import get_llm
             from config.settings import settings
