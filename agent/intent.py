@@ -222,18 +222,19 @@ def is_physical_health_query(user_text: str) -> bool:
     return False
 
 
-def is_out_of_scope(user_text: str) -> bool:
-    """Detect whether user input is clearly outside the scope of mental wellness, health, and medical guidance."""
-    lower = user_text.lower().strip()
-    if not lower:
+def is_out_of_scope(user_text: str, llm=None, use_ai: bool = True) -> bool:
+    """Detect whether user input is outside the scope of mental wellness, health, and medical guidance using deterministic patterns and AI intelligence."""
+    clean = (user_text or "").strip()
+    if not clean:
         return False
+    lower = clean.lower()
 
     # 1. If physical health or disease query, it is strictly IN SCOPE
-    if is_physical_health_query(user_text):
+    if is_physical_health_query(clean):
         return False
 
     # 2. Math queries and arithmetic are strictly OUT_OF_SCOPE
-    if is_math_query(user_text):
+    if is_math_query(clean):
         return True
 
     # 3. Explicit out-of-scope domain patterns (checked before general wellness words to prevent "help" collisions)
@@ -243,7 +244,7 @@ def is_out_of_scope(user_text: str) -> bool:
         # Cryptocurrency, finance, trading, stock market
         r"\b(?:crypto|bitcoin|ethereum|dogecoin|stock\s+market|forex|day\s+trading|investing\s+in|mutual\s+fund|share\s+price|cryptocurrency|buy\s+stocks|stock\s+price)\b",
         # Automotive, mechanical, electrical
-        r"\b(?:car\s+engine|transmission|spark\s+plug|oil\s+change|tire\s+pressure|brake\s+pads|fix\s+my\s+car|cylinder\s+head|fix\s+car)\b",
+        r"\b(?:car\s+engine|transmission|spark\s+plug|oil\s+change|tire\s+pressure|brake\s+pads|fix\s+my\s+car|cylinder\s+head|fix\s+car|carburetor|clutch\s+plate)\b",
         # Advanced math calculation / complex algebra / calculus
         r"\b(?:algebra|algebraic|equation|solve\s+(?:\w+\s+)?equation|integral\s+of|derivative\s+of|matrix\s+multiplication|eigenvalues|quadratic\s+formula|calculus|can\s+you\s+do\s+math)\b",
         # Video game cheats, betting, sports match scores
@@ -273,7 +274,36 @@ def is_out_of_scope(user_text: str) -> bool:
     if any(k in lower for k in wellness_keywords):
         return False
 
+    # 5. Dynamic AI Domain Scope Evaluation for open-ended queries that cannot be hardcoded
+    if use_ai:
+        try:
+            active_llm = llm
+            if active_llm is None and not os.environ.get("PYTEST_CURRENT_TEST"):
+                from config.llm_provider import get_llm
+                active_llm = get_llm(max_tokens=10)
+            if active_llm is not None:
+                scope_prompt = (
+                    "You are a domain scope classifier for Mindly, an AI Medical & Mental-Wellness Companion.\n"
+                    "Classify whether the user query is IN_SCOPE or OUT_OF_SCOPE.\n"
+                    "- IN_SCOPE: Mental health, emotions, stress, coping, habits, sleep, physical illness, symptoms, diseases, or friendly greetings/identity.\n"
+                    "- OUT_OF_SCOPE: Any other topic (e.g. cooking/recipes, coding, math, general trivia, sports, gaming, finance, travel, cars, science, geography, history, DIY repairs, non-health questions).\n"
+                    "Reply with ONLY 'OUT_OF_SCOPE' or 'IN_SCOPE'."
+                )
+                from langchain_core.messages import SystemMessage, HumanMessage
+                resp = active_llm.invoke([
+                    SystemMessage(content=scope_prompt),
+                    HumanMessage(content=f'User: "{clean}"\nVerdict:')
+                ])
+                verdict = str(resp.content).strip().upper()
+                if "OUT_OF_SCOPE" in verdict:
+                    return True
+                elif "IN_SCOPE" in verdict:
+                    return False
+        except Exception as exc:
+            logger.debug("AI scope evaluation skipped or failed: %s", exc)
+
     return False
+
 
 
 def is_therapist_query(user_text: str) -> bool:
@@ -551,7 +581,7 @@ INTENT_PROMPT = """Classify the user message into exactly ONE category from this
 - GOAL_REQUEST: Setting, building, or tracking personal goals and habits.
 - MEMORY_REQUEST: Recalling past shared information, updating preferred name, forgetting memories.
 - GENERAL_CONVERSATION: Greetings, conversational check-ins, Mindly identity, general wellness chat.
-- OUT_OF_SCOPE: Non-wellness topics: coding (Java/Python), math/algebra, solar panels, science, finance, trivia.
+- OUT_OF_SCOPE: Any question, request, or topic that has NOTHING to do with mental wellness, physical health, emotional support, mindfulness, or study/academic stress (e.g. cooking/recipes, general trivia, history, geography, travel, sports, gaming, movies, coding/software, math/algebra homework, finance/crypto, non-medical science, automotive/mechanics, DIY repairs, real estate, general knowledge, etc.).
 - CLARIFICATION_NEEDED: Extremely vague, ambiguous, or incomplete input where intent is genuinely unclear.
 
 Respond with ONLY the exact category name. Nothing else."""
@@ -789,8 +819,13 @@ def classify_intent_structured(user_text: str, llm=None, image_data=None) -> Int
         logger.info("RoutingDecision | intent=%s | action=%s | conf=%.2f | source=%s", res["intent"], res["selected_action"], res["confidence"], res["classifier_source"])
         return res
 
-    # Stage 5: Domain Boundary Resolution (Out-of-Scope)
-    if top_concept_intent == "OUT_OF_SCOPE" or is_out_of_scope(clean) or (llm_intent == "OUT_OF_SCOPE" and is_out_of_scope(clean)):
+    # Stage 5: Domain Boundary Resolution (Out-of-Scope via AI or deterministic guardrail)
+    is_out_scope_candidate = (
+        top_concept_intent == "OUT_OF_SCOPE"
+        or llm_intent == "OUT_OF_SCOPE"
+        or is_out_of_scope(clean, llm=effective_llm, use_ai=False)
+    )
+    if is_out_scope_candidate:
         wellness_sum = sum(concept_scores[k] for k in ["EMOTIONAL_SUPPORT", "HEALTH_INFORMATION", "GROUNDING_REQUEST", "COPING_REQUEST", "GENERAL_CONVERSATION"])
         if wellness_sum == 0.0 and not is_physical_health_query(clean):
             res: IntentClassificationResult = {
@@ -801,9 +836,9 @@ def classify_intent_structured(user_text: str, llm=None, image_data=None) -> Int
                 "tool_name": "scope_boundary_protocol",
                 "needs_clarification": False,
                 "clarification_prompt": None,
-                "routing_reason": "Domain boundary guardrail: topic is outside mental wellness and health information.",
+                "routing_reason": "Domain boundary guardrail: AI intent analyzer detected topic is outside mental wellness and health information.",
                 "raw_intent": llm_intent or "OUT_OF_SCOPE",
-                "classifier_source": "concept_arbiter",
+                "classifier_source": "ai_domain_guardian" if llm_intent == "OUT_OF_SCOPE" else "concept_arbiter",
             }
             logger.info("RoutingDecision | intent=%s | action=%s | conf=%.2f | source=%s", res["intent"], res["selected_action"], res["confidence"], res["classifier_source"])
             return res
@@ -811,8 +846,8 @@ def classify_intent_structured(user_text: str, llm=None, image_data=None) -> Int
     # Stage 6: Multi-Signal Decision Arbiter
     # Determine resolved intent between Concept Profile and LLM prediction
     if top_concept_score == 0.0:
-        resolved_intent = llm_intent if (llm_intent and llm_intent in INTENT_SPECS and llm_intent != "OUT_OF_SCOPE") else "GENERAL_CONVERSATION"
-        source = "semantic_llm" if (llm_intent and llm_intent in INTENT_SPECS and llm_intent != "OUT_OF_SCOPE") else "general_fallback"
+        resolved_intent = llm_intent if (llm_intent and llm_intent in INTENT_SPECS) else "GENERAL_CONVERSATION"
+        source = "semantic_llm" if (llm_intent and llm_intent in INTENT_SPECS) else "general_fallback"
         calibrated_conf = 0.70
     else:
         resolved_intent = top_concept_intent
@@ -828,7 +863,7 @@ def classify_intent_structured(user_text: str, llm=None, image_data=None) -> Int
             resolved_intent = top_concept_intent
             calibrated_conf = 0.88
             source = "concept_arbiter"
-        elif top_concept_score == 0.0 and llm_intent != "OUT_OF_SCOPE":
+        elif top_concept_score == 0.0:
             resolved_intent = llm_intent
             calibrated_conf = 0.75
             source = "semantic_llm"
